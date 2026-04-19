@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCPF, formatDateShort } from '@/lib/utils'
+import { formatCPF } from '@/lib/utils'
 import { QrCode, Search, CheckCircle, XCircle, Loader2, Camera, CameraOff, Users, BarChart3 } from 'lucide-react'
 import type { Event } from '@/types/database'
 
@@ -450,18 +450,53 @@ export default function AdminCheckinPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="animate-spin text-purple" size={32} />
+        <Loader2 className="animate-spin" size={32} style={{ color: 'var(--azul)' }} />
       </div>
     )
   }
 
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-gray-900 font-montserrat">Check-in</h1>
+    <div className="page-enter" style={{ color: 'var(--ink)' }}>
+
+      {/* Header */}
+      <div className="mb-10">
+        <div className="eyebrow mb-4">
+          <span className="dot" />
+          OPERAÇÃO · CONTROLE DE ACESSO
+        </div>
+        <h1 className="display" style={{ fontSize: 'clamp(40px, 5vw, 56px)' }}>
+          Check-in
+        </h1>
+        <p
+          className="mt-3"
+          style={{ color: 'var(--ink-70)', fontSize: 15, maxWidth: 560 }}
+        >
+          Escaneie QR codes ou busque por CPF para registrar a presença dos
+          participantes em tempo real.
+        </p>
+      </div>
 
       {/* Event selector */}
-      <div className="mb-6 rounded-lg bg-white p-4 shadow-sm">
-        <label className="mb-1 block text-sm font-medium text-gray-700">Selecione o Evento</label>
+      <div
+        className="mb-6 rounded-[20px] bg-white p-7"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="min-w-0">
+            <div
+              className="mono text-[10px] tracking-[0.14em]"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              EVENTO ATIVO
+            </div>
+            <h2
+              className="display mt-1"
+              style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+            >
+              Selecione o evento
+            </h2>
+          </div>
+        </div>
         <select
           value={selectedEvent}
           onChange={(e) => {
@@ -470,7 +505,8 @@ export default function AdminCheckinPage() {
             setTickets([])
             setScannedData(null)
           }}
-          className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+          className="admin-input w-full max-w-md px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+          style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}
         >
           <option value="">-- Selecione --</option>
           {events.map((ev) => (
@@ -484,53 +520,76 @@ export default function AdminCheckinPage() {
       {selectedEvent && (
         <>
           {/* Stats Dashboard */}
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-gray-500">
-                <Users size={16} />
-                <span className="text-xs font-medium uppercase">Total</span>
-              </div>
-              <p className="mt-1 text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-            <div className="rounded-lg bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle size={16} />
-                <span className="text-xs font-medium uppercase">Presentes</span>
-              </div>
-              <p className="mt-1 text-2xl font-bold text-green-600">{stats.checkedIn}</p>
-            </div>
-            <div className="rounded-lg bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-yellow-600">
-                <XCircle size={16} />
-                <span className="text-xs font-medium uppercase">Restantes</span>
-              </div>
-              <p className="mt-1 text-2xl font-bold text-yellow-600">{stats.remaining}</p>
-            </div>
-            <div className="rounded-lg bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-purple">
-                <BarChart3 size={16} />
-                <span className="text-xs font-medium uppercase">Progresso</span>
-              </div>
-              <p className="mt-1 text-2xl font-bold text-purple">{stats.percentage}%</p>
-            </div>
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile
+              label="TOTAL"
+              value={stats.total}
+              icon={<Users size={18} />}
+              accent="var(--azul)"
+              accentBg="var(--azul-50)"
+            />
+            <StatTile
+              label="PRESENTES"
+              value={stats.checkedIn}
+              icon={<CheckCircle size={18} />}
+              accent="var(--verde-600)"
+              accentBg="rgba(166,206,58,0.18)"
+              valueColor="var(--verde-600)"
+            />
+            <StatTile
+              label="RESTANTES"
+              value={stats.remaining}
+              icon={<XCircle size={18} />}
+              accent="var(--laranja)"
+              accentBg="rgba(248,130,30,0.12)"
+              valueColor="var(--laranja-600)"
+            />
+            <StatTile
+              label="PROGRESSO"
+              value={`${stats.percentage}%`}
+              icon={<BarChart3 size={18} />}
+              accent="var(--ciano)"
+              accentBg="rgba(86,198,208,0.18)"
+              valueColor="var(--ciano-600)"
+            />
           </div>
 
           {/* Progress bar */}
-          <div className="mb-6 rounded-lg bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-              <span>Progresso do Check-in</span>
-              <span>{stats.checkedIn} de {stats.total} ({stats.percentage}%)</span>
-            </div>
-            <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+          <div
+            className="mb-8 rounded-[20px] bg-white p-7"
+            style={{ border: '1px solid var(--line)' }}
+          >
+            <div className="flex items-center justify-between mb-3">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-purple to-green-500 transition-all duration-500"
-                style={{ width: `${stats.percentage}%` }}
+                className="mono text-[10px] tracking-[0.14em]"
+                style={{ color: 'var(--ink-50)' }}
+              >
+                PROGRESSO DO CHECK-IN
+              </div>
+              <div
+                className="mono text-[11px]"
+                style={{ color: 'var(--ink-70)' }}
+              >
+                {stats.checkedIn} / {stats.total} ({stats.percentage}%)
+              </div>
+            </div>
+            <div
+              className="h-2.5 w-full overflow-hidden rounded-full"
+              style={{ background: 'var(--paper-2)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${stats.percentage}%`,
+                  background:
+                    'linear-gradient(90deg, var(--azul), var(--verde))',
+                }}
               />
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="mb-4 flex gap-2">
+          <div className="mb-6 flex gap-2 flex-wrap">
             <button
               onClick={() => {
                 setActiveTab('qr')
@@ -538,13 +597,18 @@ export default function AdminCheckinPage() {
                 setScannedData(null)
                 stopScanner()
               }}
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all"
+              style={
                 activeTab === 'qr'
-                  ? 'bg-purple text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-50'
-              }`}
+                  ? { background: 'var(--azul)', color: 'white' }
+                  : {
+                      background: 'white',
+                      color: 'var(--ink-70)',
+                      border: '1px solid var(--line)',
+                    }
+              }
             >
-              <QrCode size={18} />
+              <QrCode size={16} />
               QR Code Scanner
             </button>
             <button
@@ -554,13 +618,18 @@ export default function AdminCheckinPage() {
                 setScannedData(null)
                 stopScanner()
               }}
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all"
+              style={
                 activeTab === 'cpf'
-                  ? 'bg-purple text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-50'
-              }`}
+                  ? { background: 'var(--azul)', color: 'white' }
+                  : {
+                      background: 'white',
+                      color: 'var(--ink-70)',
+                      border: '1px solid var(--line)',
+                    }
+              }
             >
-              <Search size={18} />
+              <Search size={16} />
               Busca por CPF
             </button>
           </div>
@@ -568,30 +637,83 @@ export default function AdminCheckinPage() {
           {/* Result banner */}
           {result && (
             <div
-              className={`mb-4 flex items-center gap-3 rounded-lg p-4 ${
-                result.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-              }`}
+              className="mb-6 flex items-center gap-3 rounded-2xl p-4"
+              style={
+                result.success
+                  ? {
+                      background: 'rgba(166,206,58,0.08)',
+                      border: '1px solid rgba(166,206,58,0.4)',
+                      color: '#3d5a0a',
+                    }
+                  : {
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      color: '#991b1b',
+                    }
+              }
             >
-              {result.success ? <CheckCircle size={20} /> : <XCircle size={20} />}
-              <span className="text-sm font-medium">{result.message}</span>
+              {result.success ? (
+                <CheckCircle size={20} className="shrink-0" />
+              ) : (
+                <XCircle size={20} className="shrink-0" />
+              )}
+              <span className="text-sm font-medium min-w-0">
+                {result.message}
+              </span>
             </div>
           )}
 
           {/* QR Tab */}
           {activeTab === 'qr' && (
-            <div className="rounded-lg bg-white p-6 shadow-sm">
+            <div
+              className="rounded-[20px] bg-white p-7"
+              style={{ border: '1px solid var(--line)' }}
+            >
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <div className="min-w-0">
+                  <div
+                    className="mono text-[10px] tracking-[0.14em]"
+                    style={{ color: 'var(--ink-50)' }}
+                  >
+                    SCANNER
+                  </div>
+                  <h2
+                    className="display mt-1"
+                    style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+                  >
+                    Leitura de QR Code
+                  </h2>
+                </div>
+              </div>
+
               {/* Camera scanner area */}
-              <div className="mb-4">
+              <div className="mb-5">
                 {!scannerActive && !scannedData && (
-                  <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-6">
-                    <Camera size={48} className="mb-3 text-gray-400" />
-                    <p className="mb-3 text-sm text-gray-500">Clique para ativar a camera e escanear o QR Code</p>
+                  <div
+                    className="flex flex-col items-center justify-center rounded-2xl p-10"
+                    style={{
+                      background: 'var(--paper-2)',
+                      border: '1px dashed var(--line)',
+                    }}
+                  >
+                    <div
+                      className="rounded-2xl p-4 mb-4"
+                      style={{ background: 'var(--azul-50)' }}
+                    >
+                      <Camera size={36} style={{ color: 'var(--azul)' }} />
+                    </div>
+                    <p
+                      className="mono text-[11px] tracking-[0.14em] mb-5 text-center"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
+                      ATIVE A CÂMERA PARA INICIAR O SCAN
+                    </p>
                     <button
                       onClick={startScanner}
-                      className="inline-flex items-center gap-2 rounded-lg bg-purple px-6 py-2 text-sm font-medium text-white hover:bg-purple-dark"
+                      className="btn btn-orange btn-lg"
                     >
                       <Camera size={16} />
-                      Ativar Camera
+                      Ativar Câmera
                     </button>
                   </div>
                 )}
@@ -599,53 +721,128 @@ export default function AdminCheckinPage() {
                 {/* Scanner container - always in DOM but hidden when not scanning */}
                 <div
                   id={scannerContainerId}
-                  className={scannerActive ? 'rounded-lg overflow-hidden' : 'hidden'}
+                  className={
+                    scannerActive ? 'rounded-2xl overflow-hidden' : 'hidden'
+                  }
+                  style={
+                    scannerActive ? { border: '1px solid var(--line)' } : undefined
+                  }
                 />
 
                 {scannerActive && (
                   <button
                     onClick={stopScanner}
-                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition-all"
+                    style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' }}
                   >
                     <CameraOff size={16} />
-                    Parar Camera
+                    Parar Câmera
                   </button>
                 )}
               </div>
 
               {/* Loading indicator when processing QR */}
               {validating && (
-                <div className="mb-4 flex items-center justify-center gap-2 rounded-lg bg-purple/5 p-4">
-                  <Loader2 className="animate-spin text-purple" size={20} />
-                  <span className="text-sm text-purple font-medium">Processando QR Code...</span>
+                <div
+                  className="mb-5 flex items-center justify-center gap-2 rounded-2xl p-4"
+                  style={{ background: 'var(--azul-50)' }}
+                >
+                  <Loader2
+                    className="animate-spin"
+                    size={18}
+                    style={{ color: 'var(--azul)' }}
+                  />
+                  <span
+                    className="mono text-[11px] tracking-[0.14em]"
+                    style={{ color: 'var(--azul)' }}
+                  >
+                    PROCESSANDO QR CODE...
+                  </span>
                 </div>
               )}
 
               {/* Scanned data display */}
               {scannedData && (
-                <div className="mb-4 rounded-lg border border-purple/20 bg-purple/5 p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900">
-                      {scannedData.type === 'group' ? 'Grupo' : 'Inscricao Individual'}
-                      {scannedData.purchase_group && (
-                        <span className="ml-2 text-sm font-normal text-purple">
-                          ({scannedData.purchase_group})
-                        </span>
-                      )}
-                    </h3>
+                <div
+                  className="mb-5 rounded-2xl p-5"
+                  style={{
+                    background: 'var(--azul-50)',
+                    border: '1px solid rgba(43,46,141,0.18)',
+                  }}
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div
+                        className="mono text-[10px] tracking-[0.14em]"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        {scannedData.type === 'group'
+                          ? 'GRUPO DETECTADO'
+                          : 'INSCRIÇÃO INDIVIDUAL'}
+                      </div>
+                      <h3
+                        className="display mt-1 truncate"
+                        style={{ fontSize: 18, letterSpacing: '-0.02em' }}
+                      >
+                        {scannedData.purchase_group ?? 'Inscrição'}
+                      </h3>
+                    </div>
                     <button
                       onClick={clearScannedData}
-                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                      className="mono text-[10px] tracking-[0.1em] hover:opacity-70 transition-opacity shrink-0 whitespace-nowrap"
+                      style={{ color: 'var(--ink-70)' }}
                     >
-                      Limpar
+                      LIMPAR
                     </button>
                   </div>
 
                   {/* Participant info */}
-                  <div className="mb-4 rounded bg-white p-3 text-sm">
-                    <p><span className="font-medium text-gray-600">Nome:</span> {scannedData.participant.nome}</p>
-                    <p><span className="font-medium text-gray-600">Email:</span> {scannedData.participant.email}</p>
-                    <p><span className="font-medium text-gray-600">CPF:</span> {formatCPF(scannedData.participant.cpf)}</p>
+                  <div
+                    className="mb-4 rounded-xl bg-white p-4 text-sm space-y-1.5"
+                    style={{ border: '1px solid var(--line)' }}
+                  >
+                    <p className="min-w-0">
+                      <span
+                        className="mono text-[10px] tracking-[0.1em]"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        NOME
+                      </span>
+                      <span
+                        className="ml-2 font-medium"
+                        style={{ color: 'var(--ink)' }}
+                      >
+                        {scannedData.participant.nome}
+                      </span>
+                    </p>
+                    <p className="min-w-0 break-all">
+                      <span
+                        className="mono text-[10px] tracking-[0.1em]"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        EMAIL
+                      </span>
+                      <span
+                        className="ml-2"
+                        style={{ color: 'var(--ink-70)' }}
+                      >
+                        {scannedData.participant.email}
+                      </span>
+                    </p>
+                    <p>
+                      <span
+                        className="mono text-[10px] tracking-[0.1em]"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        CPF
+                      </span>
+                      <span
+                        className="mono ml-2"
+                        style={{ color: 'var(--ink-70)' }}
+                      >
+                        {formatCPF(scannedData.participant.cpf)}
+                      </span>
+                    </p>
                   </div>
 
                   {/* Inscriptions / Events */}
@@ -657,50 +854,87 @@ export default function AdminCheckinPage() {
                       return (
                         <div
                           key={ins.id}
-                          className={`rounded-lg border p-3 ${
-                            isSelectedEvent
-                              ? 'border-purple/30 bg-white'
-                              : 'border-gray-200 bg-gray-50 opacity-70'
-                          }`}
+                          className="rounded-xl p-4"
+                          style={{
+                            background: 'white',
+                            border: isSelectedEvent
+                              ? '1px solid rgba(43,46,141,0.3)'
+                              : '1px solid var(--line)',
+                            opacity: isSelectedEvent ? 1 : 0.65,
+                          }}
                         >
-                          <div className="mb-2 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{eventTitle}</p>
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className="text-sm font-semibold truncate"
+                                style={{ color: 'var(--ink)' }}
+                                title={eventTitle}
+                              >
+                                {eventTitle}
+                              </p>
                               {ins.event && (
-                                <p className="text-xs text-gray-500">
-                                  {ins.event.event_date} - {ins.event.start_time} a {ins.event.end_time}
+                                <p
+                                  className="mono text-[10px] tracking-[0.06em] mt-1"
+                                  style={{ color: 'var(--ink-50)' }}
+                                >
+                                  {ins.event.event_date} · {ins.event.start_time} - {ins.event.end_time}
                                 </p>
                               )}
                             </div>
                             {isSelectedEvent && (
-                              <span className="rounded-full bg-purple/10 px-2 py-0.5 text-xs font-medium text-purple">
-                                Evento selecionado
+                              <span
+                                className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap shrink-0"
+                                style={{
+                                  background: 'var(--azul-50)',
+                                  color: 'var(--azul)',
+                                }}
+                              >
+                                ATIVO
                               </span>
                             )}
                           </div>
 
-                          <div className="text-xs text-gray-500 mb-2">
-                            {ins.tickets_used} de {ins.tickets_total} check-ins realizados
+                          <div
+                            className="mono text-[10px] tracking-[0.1em] mb-3"
+                            style={{ color: 'var(--ink-50)' }}
+                          >
+                            {ins.tickets_used} DE {ins.tickets_total} CHECK-INS
                           </div>
 
                           {/* Tickets for this inscription */}
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             {ins.tickets.map((ticket) => (
                               <div
                                 key={ticket.id}
-                                className="flex items-center justify-between rounded bg-gray-50 px-2 py-1.5 text-sm"
+                                className="flex items-center justify-between rounded-lg px-3 py-2 gap-2"
+                                style={{ background: 'var(--paper-2)' }}
                               >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
                                   {ticket.status === 'used' ? (
-                                    <CheckCircle size={14} className="text-green-500" />
+                                    <CheckCircle
+                                      size={14}
+                                      className="shrink-0"
+                                      style={{ color: 'var(--verde-600)' }}
+                                    />
                                   ) : (
-                                    <div className="h-3.5 w-3.5 rounded-full border-2 border-gray-300" />
+                                    <div
+                                      className="h-3.5 w-3.5 rounded-full shrink-0"
+                                      style={{
+                                        border: '2px solid var(--ink-50)',
+                                      }}
+                                    />
                                   )}
-                                  <span className="text-xs text-gray-500 font-mono">
+                                  <span
+                                    className="mono text-[10px] tracking-[0.06em] truncate"
+                                    style={{ color: 'var(--ink-70)' }}
+                                  >
                                     {ticket.id.slice(0, 8)}...
                                   </span>
                                   {ticket.checked_in_at && (
-                                    <span className="text-xs text-green-600">
+                                    <span
+                                      className="mono text-[10px] whitespace-nowrap"
+                                      style={{ color: 'var(--verde-600)' }}
+                                    >
                                       {new Date(ticket.checked_in_at).toLocaleTimeString('pt-BR', {
                                         hour: '2-digit',
                                         minute: '2-digit',
@@ -712,17 +946,29 @@ export default function AdminCheckinPage() {
                                   <button
                                     onClick={() => handleCheckinTicket(ticket.id)}
                                     disabled={processingTicket === ticket.id}
-                                    className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                                    className="mono shrink-0 rounded-full px-3 py-1.5 text-[10px] tracking-[0.08em] font-medium transition-all disabled:opacity-50"
+                                    style={{
+                                      background: 'var(--verde)',
+                                      color: '#3d5a0a',
+                                    }}
                                   >
                                     {processingTicket === ticket.id ? (
                                       <Loader2 className="animate-spin" size={12} />
                                     ) : (
-                                      'Check-in'
+                                      'CHECK-IN'
                                     )}
                                   </button>
                                 )}
                                 {ticket.status === 'used' && (
-                                  <span className="text-xs text-green-600 font-medium">Presente</span>
+                                  <span
+                                    className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap shrink-0"
+                                    style={{
+                                      background: 'rgba(166,206,58,0.18)',
+                                      color: '#3d5a0a',
+                                    }}
+                                  >
+                                    PRESENTE
+                                  </span>
                                 )}
                               </div>
                             ))}
@@ -738,7 +984,7 @@ export default function AdminCheckinPage() {
                       clearScannedData()
                       startScanner()
                     }}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-purple px-4 py-2 text-sm font-medium text-white hover:bg-purple-dark"
+                    className="btn btn-orange mt-5 w-full justify-center"
                   >
                     <QrCode size={16} />
                     Escanear outro QR Code
@@ -747,20 +993,29 @@ export default function AdminCheckinPage() {
               )}
 
               {/* Manual ticket ID input */}
-              <div className="border-t border-gray-100 pt-4">
-                <p className="mb-2 text-xs text-gray-500">Ou digite o ID do ticket manualmente:</p>
-                <form onSubmit={handleValidateTicket} className="flex gap-3">
+              <div
+                className="pt-5"
+                style={{ borderTop: '1px solid var(--line)' }}
+              >
+                <div
+                  className="mono text-[10px] tracking-[0.14em] mb-3"
+                  style={{ color: 'var(--ink-50)' }}
+                >
+                  OU DIGITE O ID DO TICKET
+                </div>
+                <form onSubmit={handleValidateTicket} className="flex gap-3 flex-wrap sm:flex-nowrap">
                   <input
                     type="text"
                     value={ticketId}
                     onChange={(e) => setTicketId(e.target.value)}
                     placeholder="ID do ticket..."
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+                    className="admin-input flex-1 min-w-0 px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+                    style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}
                   />
                   <button
                     type="submit"
                     disabled={validating}
-                    className="rounded-lg bg-purple px-6 py-2 text-sm font-medium text-white hover:bg-purple-dark disabled:opacity-50"
+                    className="btn btn-orange disabled:opacity-50"
                   >
                     {validating ? 'Validando...' : 'Validar'}
                   </button>
@@ -771,19 +1026,43 @@ export default function AdminCheckinPage() {
 
           {/* CPF Tab */}
           {activeTab === 'cpf' && (
-            <div className="rounded-lg bg-white p-6 shadow-sm">
-              <form onSubmit={handleSearchCPF} className="mb-6 flex gap-3">
+            <div
+              className="rounded-[20px] bg-white p-7"
+              style={{ border: '1px solid var(--line)' }}
+            >
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <div className="min-w-0">
+                  <div
+                    className="mono text-[10px] tracking-[0.14em]"
+                    style={{ color: 'var(--ink-50)' }}
+                  >
+                    BUSCA MANUAL
+                  </div>
+                  <h2
+                    className="display mt-1"
+                    style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+                  >
+                    Buscar por CPF
+                  </h2>
+                </div>
+              </div>
+
+              <form
+                onSubmit={handleSearchCPF}
+                className="mb-6 flex gap-3 flex-wrap sm:flex-nowrap"
+              >
                 <input
                   type="text"
                   value={cpf}
                   onChange={(e) => setCpf(e.target.value)}
                   placeholder="Digite o CPF..."
-                  className="flex-1 max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+                  className="admin-input flex-1 min-w-0 sm:max-w-xs px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+                  style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}
                 />
                 <button
                   type="submit"
                   disabled={searching}
-                  className="inline-flex items-center gap-2 rounded-lg bg-purple px-4 py-2 text-sm font-medium text-white hover:bg-purple-dark disabled:opacity-50"
+                  className="btn btn-orange disabled:opacity-50"
                 >
                   <Search size={16} />
                   {searching ? 'Buscando...' : 'Buscar'}
@@ -791,55 +1070,128 @@ export default function AdminCheckinPage() {
               </form>
 
               {tickets.length > 0 && (
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b text-gray-500">
-                      <th className="pb-3 font-medium">Participante</th>
-                      <th className="pb-3 font-medium">Status</th>
-                      <th className="pb-3 font-medium">Acao</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {tickets.map((ticket) => (
-                      <tr key={ticket.id} className="text-gray-700">
-                        <td className="py-3">{ticket.participant_name}</td>
-                        <td className="py-3">
-                          {ticket.checked_in_at ? (
-                            <span className="inline-flex items-center gap-1 text-green-600">
-                              <CheckCircle size={14} />
-                              Check-in realizado
-                            </span>
-                          ) : (
-                            <span className="text-yellow-600">Pendente</span>
-                          )}
-                        </td>
-                        <td className="py-3">
-                          {!ticket.checked_in_at && (
-                            <button
-                              onClick={() => handleConfirmPresence(ticket.id)}
-                              className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
-                            >
-                              Confirmar Presenca
-                            </button>
-                          )}
-                        </td>
+                <div className="overflow-x-auto -mx-2">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                        {['Participante', 'Status', 'Ação'].map((h) => (
+                          <th
+                            key={h}
+                            className="mono text-[10px] tracking-[0.1em] py-3 px-2 font-medium uppercase"
+                            style={{ color: 'var(--ink-50)' }}
+                          >
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {tickets.map((ticket) => (
+                        <tr
+                          key={ticket.id}
+                          style={{ borderBottom: '1px solid var(--line)' }}
+                        >
+                          <td
+                            className="py-4 px-2 font-medium max-w-[260px] truncate"
+                            style={{ color: 'var(--ink)' }}
+                            title={ticket.participant_name}
+                          >
+                            {ticket.participant_name}
+                          </td>
+                          <td className="py-4 px-2">
+                            {ticket.checked_in_at ? (
+                              <span
+                                className="mono inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                                style={{
+                                  background: 'rgba(166,206,58,0.18)',
+                                  color: '#3d5a0a',
+                                }}
+                              >
+                                <CheckCircle size={10} />
+                                PRESENTE
+                              </span>
+                            ) : (
+                              <span
+                                className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                                style={{
+                                  background: 'rgba(248,130,30,0.15)',
+                                  color: '#b85d00',
+                                }}
+                              >
+                                PENDENTE
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-2">
+                            {!ticket.checked_in_at && (
+                              <button
+                                onClick={() => handleConfirmPresence(ticket.id)}
+                                className="mono rounded-full px-3 py-1.5 text-[10px] tracking-[0.08em] font-medium transition-all"
+                                style={{
+                                  background: 'var(--verde)',
+                                  color: '#3d5a0a',
+                                }}
+                              >
+                                CONFIRMAR
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
 
           {/* Recent check-ins */}
           {recentCheckins.length > 0 && (
-            <div className="mt-6 rounded-lg bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-lg font-semibold text-gray-900">Check-ins Recentes</h2>
-              <ul className="divide-y">
+            <div
+              className="mt-8 rounded-[20px] bg-white p-7"
+              style={{ border: '1px solid var(--line)' }}
+            >
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <div className="min-w-0">
+                  <div
+                    className="mono text-[10px] tracking-[0.14em]"
+                    style={{ color: 'var(--ink-50)' }}
+                  >
+                    ÚLTIMOS 10
+                  </div>
+                  <h2
+                    className="display mt-1"
+                    style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+                  >
+                    Check-ins recentes
+                  </h2>
+                </div>
+              </div>
+              <ul className="space-y-0">
                 {recentCheckins.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between py-2 text-sm">
-                    <span className="font-medium text-gray-700">{c.participant_name}</span>
-                    <span className="text-gray-400">
+                  <li
+                    key={c.id}
+                    className="flex items-center justify-between gap-3 py-3"
+                    style={{ borderBottom: '1px solid var(--line)' }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <CheckCircle
+                        size={14}
+                        className="shrink-0"
+                        style={{ color: 'var(--verde-600)' }}
+                      />
+                      <span
+                        className="text-sm font-medium truncate"
+                        style={{ color: 'var(--ink)' }}
+                        title={c.participant_name}
+                      >
+                        {c.participant_name}
+                      </span>
+                    </div>
+                    <span
+                      className="mono text-[11px] whitespace-nowrap shrink-0"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
                       {new Date(c.checked_in_at).toLocaleTimeString('pt-BR', {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -852,6 +1204,58 @@ export default function AdminCheckinPage() {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function StatTile({
+  label,
+  value,
+  icon,
+  accent,
+  accentBg,
+  valueColor,
+}: {
+  label: string
+  value: number | string
+  icon: React.ReactNode
+  accent: string
+  accentBg: string
+  valueColor?: string
+}) {
+  return (
+    <div
+      className="rounded-[20px] bg-white p-5 overflow-hidden"
+      style={{
+        border: '1px solid var(--line)',
+        boxShadow: '0 1px 0 rgba(0,0,0,0.02)',
+      }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div
+          className="mono text-[10px] tracking-[0.14em] truncate min-w-0 flex-1"
+          style={{ color: 'var(--ink-50)' }}
+        >
+          {label}
+        </div>
+        <div
+          className="rounded-lg p-2 shrink-0"
+          style={{ background: accentBg, color: accent }}
+        >
+          {icon}
+        </div>
+      </div>
+      <div
+        className="display truncate"
+        style={{
+          fontSize: 'clamp(28px, 3.4vw, 36px)',
+          letterSpacing: '-0.03em',
+          lineHeight: 1,
+          color: valueColor ?? 'var(--ink)',
+        }}
+      >
+        {value}
+      </div>
     </div>
   )
 }

@@ -408,7 +408,7 @@ export default function InscricoesPage() {
                 <div className="mono text-[11px] text-ink-50 tracking-[0.1em] mb-3">
                   AINDA NÃO SE INSCREVEU?
                 </div>
-                <Link href="/" className="btn btn-primary w-full justify-center">
+                <Link href="/inscricoes" className="btn btn-primary w-full justify-center">
                   Ver eventos disponíveis <ArrowRight size={14} />
                 </Link>
               </div>
@@ -464,7 +464,7 @@ export default function InscricoesPage() {
                         Não encontramos inscrições para o CPF{' '}
                         {formatCPF(cpf.replace(/\D/g, ''))}
                       </p>
-                      <Link href="/" className="btn btn-primary">
+                      <Link href="/inscricoes" className="btn btn-primary">
                         Ver eventos disponíveis <ArrowRight size={14} />
                       </Link>
                     </div>

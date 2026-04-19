@@ -12,7 +12,11 @@ const registerSchema = z.object({
   segment: z.string().min(1, 'Segmento obrigatório'),
   description: z.string().optional(),
   stand_size: z.string().optional(),
+  stand_number: z.string().optional(),
   logo_url: z.string().nullable().optional(),
+  // Quando true, o usuário confirmou que quer um cadastro adicional mesmo
+  // existindo stand para o mesmo email/CNPJ (empresa comprando múltiplos stands).
+  confirm_duplicate: z.boolean().optional(),
 })
 
 // POST - Cadastro público de expositor
@@ -23,25 +27,71 @@ export async function POST(request: Request) {
 
     const supabase = createAdminClient()
 
-    // Verificar se já existe cadastro com mesmo email
-    const { data: existing } = await supabase
-      .from('exhibitors')
-      .select('id, status')
-      .eq('email', data.email)
-      .in('status', ['pending', 'approved'])
-      .single()
+    // Verifica duplicata por email OU CNPJ (se fornecido) quando o usuário
+    // ainda não confirmou que quer um cadastro adicional.
+    if (!data.confirm_duplicate) {
+      const cnpjDigits = data.cnpj?.replace(/\D/g, '') || null
 
-    if (existing) {
-      return NextResponse.json(
-        { error: existing.status === 'approved'
-          ? 'Este email já possui um cadastro aprovado'
-          : 'Já existe uma solicitação pendente para este email'
-        },
-        { status: 400 }
-      )
+      let duplicateQuery = supabase
+        .from('exhibitors')
+        .select('id, status, company_name, email, cnpj, stand_number')
+        .in('status', ['pending', 'approved'])
+
+      if (cnpjDigits) {
+        duplicateQuery = duplicateQuery.or(`email.eq.${data.email},cnpj.eq.${cnpjDigits}`)
+      } else {
+        duplicateQuery = duplicateQuery.eq('email', data.email)
+      }
+
+      const { data: existingRows } = await duplicateQuery.limit(1)
+      const existing = existingRows?.[0]
+
+      if (existing) {
+        const matchedBy = existing.email === data.email ? 'email' : 'cnpj'
+        const standInfo = existing.stand_number ? ` (stand ${existing.stand_number})` : ''
+        const message = existing.status === 'approved'
+          ? `Já existe um stand aprovado para este ${matchedBy === 'email' ? 'email' : 'CNPJ'}${standInfo} — empresa: ${existing.company_name}. Deseja reservar outro stand?`
+          : `Já existe uma reserva pendente para este ${matchedBy === 'email' ? 'email' : 'CNPJ'}${standInfo} — empresa: ${existing.company_name}. Deseja reservar outro stand?`
+
+        return NextResponse.json(
+          {
+            error: 'DUPLICATE_EXHIBITOR',
+            message,
+            existing: {
+              id: existing.id,
+              status: existing.status,
+              company_name: existing.company_name,
+              stand_number: existing.stand_number,
+              matched_by: matchedBy,
+            },
+          },
+          { status: 409 },
+        )
+      }
     }
 
-    const { error: insertError } = await supabase
+    // Reserva atômica do stand (bloqueia condição de corrida entre dois clicks)
+    if (data.stand_number) {
+      const { data: claimed, error: claimError } = await supabase
+        .from('stands')
+        .update({ status: 'reserved' })
+        .eq('number', data.stand_number)
+        .eq('status', 'available')
+        .select('id')
+
+      if (claimError) {
+        console.error('Erro ao reservar stand:', claimError)
+        return NextResponse.json({ error: 'Erro ao reservar stand' }, { status: 500 })
+      }
+      if (!claimed || claimed.length === 0) {
+        return NextResponse.json(
+          { error: 'Este stand não está mais disponível. Escolha outro.' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const { data: inserted, error: insertError } = await supabase
       .from('exhibitors')
       .insert({
         company_name: data.company_name,
@@ -53,13 +103,31 @@ export async function POST(request: Request) {
         segment: data.segment,
         description: data.description || null,
         stand_size: data.stand_size || 'indefinido',
+        stand_number: data.stand_number || null,
         logo_url: data.logo_url || null,
         status: 'pending',
       })
+      .select('id')
+      .single()
 
     if (insertError) {
       console.error('Erro ao cadastrar expositor:', insertError)
+      // Rollback: libera o stand se já havia sido reservado
+      if (data.stand_number) {
+        await supabase
+          .from('stands')
+          .update({ status: 'available', exhibitor_id: null })
+          .eq('number', data.stand_number)
+      }
       return NextResponse.json({ error: 'Erro ao realizar cadastro' }, { status: 500 })
+    }
+
+    // Vincula o expositor ao stand reservado
+    if (data.stand_number && inserted) {
+      await supabase
+        .from('stands')
+        .update({ exhibitor_id: inserted.id })
+        .eq('number', data.stand_number)
     }
 
     return NextResponse.json({ success: true, message: 'Cadastro realizado com sucesso' })
@@ -115,10 +183,33 @@ export async function PATCH(request: Request) {
     const supabase = createAdminClient()
 
     if (action === 'approve') {
+      // Busca estado atual antes de aprovar
+      const { data: current } = await supabase
+        .from('exhibitors')
+        .select('stand_number')
+        .eq('id', id)
+        .single()
+
       await supabase
         .from('exhibitors')
         .update({ status: 'approved', admin_notes: updates.admin_notes || null, stand_number: updates.stand_number || null })
         .eq('id', id)
+
+      // Sincroniza stands: libera stand antigo se mudou, marca novo como sold
+      const oldStand = current?.stand_number || null
+      const newStand = updates.stand_number || null
+      if (oldStand && oldStand !== newStand) {
+        await supabase
+          .from('stands')
+          .update({ status: 'available', exhibitor_id: null })
+          .eq('number', oldStand)
+      }
+      if (newStand) {
+        await supabase
+          .from('stands')
+          .update({ status: 'sold', exhibitor_id: id })
+          .eq('number', newStand)
+      }
 
       // Enviar email de aprovação
       const { data: exhibitor } = await supabase.from('exhibitors').select('*').eq('id', id).single()
@@ -154,15 +245,35 @@ export async function PATCH(request: Request) {
     }
 
     if (action === 'reject') {
+      const { data: current } = await supabase
+        .from('exhibitors')
+        .select('stand_number')
+        .eq('id', id)
+        .single()
+
       await supabase
         .from('exhibitors')
         .update({ status: 'rejected', admin_notes: updates.admin_notes || null })
         .eq('id', id)
 
+      // Libera o stand que estava reservado
+      if (current?.stand_number) {
+        await supabase
+          .from('stands')
+          .update({ status: 'available', exhibitor_id: null })
+          .eq('number', current.stand_number)
+      }
+
       return NextResponse.json({ success: true, message: 'Expositor rejeitado' })
     }
 
     if (action === 'update') {
+      const { data: current } = await supabase
+        .from('exhibitors')
+        .select('stand_number, status')
+        .eq('id', id)
+        .single()
+
       const { error: updateError } = await supabase
         .from('exhibitors')
         .update({
@@ -182,6 +293,26 @@ export async function PATCH(request: Request) {
         .eq('id', id)
 
       if (updateError) throw updateError
+
+      // Sincroniza o catálogo de stands se o número mudou
+      const oldStand = current?.stand_number || null
+      const newStand = updates.stand_number || null
+      const standStatus = current?.status === 'approved' ? 'sold' : 'reserved'
+      if (oldStand !== newStand) {
+        if (oldStand) {
+          await supabase
+            .from('stands')
+            .update({ status: 'available', exhibitor_id: null })
+            .eq('number', oldStand)
+        }
+        if (newStand) {
+          await supabase
+            .from('stands')
+            .update({ status: standStatus, exhibitor_id: id })
+            .eq('number', newStand)
+        }
+      }
+
       return NextResponse.json({ success: true, message: 'Expositor atualizado' })
     }
 

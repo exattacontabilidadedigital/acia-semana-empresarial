@@ -29,7 +29,10 @@ export default function Footer() {
                 className="h-[72px] w-auto block"
               />
             </Link>
-            <p className="text-sm leading-relaxed text-[#a0a2c2] max-w-xs">
+            <p
+              className="leading-relaxed text-[#a0a2c2] max-w-xs"
+              style={{ fontSize: 14 }}
+            >
               Gente que pensa negócios que evoluem. O maior evento empresarial do sudoeste
               maranhense.
             </p>
@@ -85,7 +88,7 @@ export default function Footer() {
             <h5 className="mono text-[11px] tracking-[0.14em] uppercase text-[#8a8ca8] mb-4 font-medium">
               Navegue
             </h5>
-            <ul className="flex flex-col gap-2.5 text-sm">
+            <ul className="flex flex-col gap-2.5" style={{ fontSize: 14 }}>
               {PAGES.map((p) => (
                 <li key={p.href}>
                   <Link href={p.href} className="hover:text-white transition-colors">
@@ -101,7 +104,7 @@ export default function Footer() {
             <h5 className="mono text-[11px] tracking-[0.14em] uppercase text-[#8a8ca8] mb-4 font-medium">
               Participe
             </h5>
-            <ul className="flex flex-col gap-2.5 text-sm">
+            <ul className="flex flex-col gap-2.5" style={{ fontSize: 14 }}>
               <li>
                 <Link href="/expositores" className="hover:text-white transition-colors">
                   Quero ser expositor
@@ -140,7 +143,7 @@ export default function Footer() {
             <h5 className="mono text-[11px] tracking-[0.14em] uppercase text-[#8a8ca8] mb-4 font-medium">
               Contato
             </h5>
-            <ul className="flex flex-col gap-2.5 text-sm">
+            <ul className="flex flex-col gap-2.5" style={{ fontSize: 14 }}>
               <li>Açailândia — MA</li>
               <li>
                 <a href="mailto:acia.aca@gmail.com" className="hover:text-white transition-colors">

@@ -1,43 +1,52 @@
-import { redirect } from 'next/navigation'
+import { Search, CheckCircle2 } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { requireActiveOrg } from '@/lib/orgs'
 import { formatCPF, formatDateShort } from '@/lib/utils'
 
-interface PageProps {
-  searchParams: { evento?: string; busca?: string }
+export const dynamic = 'force-dynamic'
+
+const PAYMENT_PILL: Record<string, { bg: string; color: string; label: string }> = {
+  confirmed: { bg: 'rgba(166,206,58,0.18)', color: '#3d5a0a', label: 'CONFIRMADO' },
+  free: { bg: 'rgba(86,198,208,0.18)', color: '#0a4650', label: 'GRATUITO' },
+  pending: { bg: 'rgba(248,130,30,0.15)', color: '#b85d00', label: 'PENDENTE' },
+  failed: { bg: '#fee2e2', color: '#991b1b', label: 'FALHOU' },
+  refunded: { bg: 'var(--paper-2)', color: 'var(--ink-50)', label: 'ESTORNADO' },
 }
 
-export default async function ParceiroInscricoesPage({ searchParams }: PageProps) {
+export default async function ParceiroInscricoesPage({
+  searchParams,
+}: {
+  searchParams: { evento?: string; busca?: string }
+}) {
+  const org = await requireActiveOrg()
   const supabase = createServerSupabaseClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
   const eventoFilter = searchParams.evento ?? ''
-  const busca = searchParams.busca ?? ''
+  const busca = (searchParams.busca ?? '').trim()
 
-  // Fetch events owned by this user (for filter dropdown)
+  // Eventos da org
   const { data: events } = await supabase
     .from('events')
     .select('id, title')
-    .eq('owner_id', user.id)
+    .eq('organization_id', org.id)
     .order('title')
 
-  const eventIds = events?.map((e) => e.id) ?? []
+  const eventIds = (events ?? []).map((e: any) => e.id)
 
   let inscriptions: any[] = []
-
   if (eventIds.length > 0) {
     let query = supabase
       .from('inscriptions')
-      .select('*, events(title)')
+      .select(
+        'id, nome, email, cpf, payment_status, created_at, event_id, events(title)'
+      )
       .in('event_id', eventIds)
       .order('created_at', { ascending: false })
 
-    // Filter by specific event
     if (eventoFilter) {
-      const eventId = parseInt(eventoFilter, 10)
-      if (!isNaN(eventId) && eventIds.includes(eventId)) {
-        query = query.eq('event_id', eventId)
+      const id = parseInt(eventoFilter, 10)
+      if (!isNaN(id) && eventIds.includes(id)) {
+        query = query.eq('event_id', id)
       }
     }
 
@@ -45,134 +54,227 @@ export default async function ParceiroInscricoesPage({ searchParams }: PageProps
     inscriptions = data ?? []
   }
 
-  // Client-side-like search filter (applied server-side)
   if (busca) {
     const term = busca.toLowerCase()
     inscriptions = inscriptions.filter(
-      (insc: any) =>
-        insc.nome.toLowerCase().includes(term) ||
-        insc.cpf.includes(term) ||
-        insc.email.toLowerCase().includes(term)
+      (i: any) =>
+        i.nome?.toLowerCase().includes(term) ||
+        i.cpf?.includes(term) ||
+        i.email?.toLowerCase().includes(term)
     )
   }
 
-  // Fetch check-in status for each inscription
-  const inscriptionIds = inscriptions.map((i: any) => i.id)
-  let checkinMap: Record<number, boolean> = {}
-
-  if (inscriptionIds.length > 0) {
+  // Check-in status
+  const checkinMap: Record<number, boolean> = {}
+  if (inscriptions.length > 0) {
+    const ids = inscriptions.map((i: any) => i.id)
     const { data: tickets } = await supabase
       .from('tickets')
       .select('inscription_id, checked_in_at')
-      .in('inscription_id', inscriptionIds)
-
-    if (tickets) {
-      for (const t of tickets) {
-        if (t.checked_in_at) {
-          checkinMap[t.inscription_id] = true
-        }
-      }
+      .in('inscription_id', ids)
+    for (const t of tickets ?? []) {
+      if ((t as any).checked_in_at) checkinMap[(t as any).inscription_id] = true
     }
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Inscrições</h1>
-        <p className="text-gray-500 mt-1">Visualize as inscrições dos seus eventos</p>
+    <div className="page-enter">
+      <div className="mb-10">
+        <div className="eyebrow mb-4">
+          <span className="dot" />
+          PORTAL · INSCRIÇÕES
+        </div>
+        <h1 className="display" style={{ fontSize: 'clamp(40px, 5vw, 56px)' }}>
+          Inscrições
+        </h1>
+        <p
+          className="mt-3"
+          style={{ color: 'var(--ink-70)', fontSize: 15, maxWidth: 560 }}
+        >
+          Visualize todas as inscrições dos seus eventos. Filtre por evento ou
+          busque por nome, CPF ou email.
+        </p>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-        <form method="GET" className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
-            <input
-              type="text"
-              name="busca"
-              defaultValue={busca}
-              placeholder="Nome, CPF ou email..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
-            />
-          </div>
-          <div className="min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Evento</label>
+      {/* Filtros */}
+      <form
+        method="GET"
+        className="rounded-[20px] bg-white p-5 mb-5"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="grid sm:grid-cols-[1fr_240px_auto] gap-4 items-end">
+          <label className="block">
+            <span
+              className="mono block text-[10px] tracking-[0.1em] mb-2"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              BUSCAR
+            </span>
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: 'var(--ink-50)' }}
+              />
+              <input
+                name="busca"
+                type="text"
+                defaultValue={busca}
+                placeholder="Nome, CPF ou email..."
+                className="admin-input w-full pl-9 pr-4 py-3 rounded-xl text-sm"
+              />
+            </div>
+          </label>
+          <label className="block">
+            <span
+              className="mono block text-[10px] tracking-[0.1em] mb-2"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              EVENTO
+            </span>
             <select
               name="evento"
               defaultValue={eventoFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
+              className="admin-select w-full px-4 py-3 rounded-xl text-sm"
             >
               <option value="">Todos os eventos</option>
-              {events?.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.title}
+              {events?.map((e: any) => (
+                <option key={e.id} value={e.id}>
+                  {e.title}
                 </option>
               ))}
             </select>
-          </div>
-          <button
-            type="submit"
-            className="px-6 py-2 bg-purple-700 text-white rounded-lg text-sm font-medium hover:bg-purple-800 transition-colors"
-          >
+          </label>
+          <button type="submit" className="btn btn-orange btn-lg">
             Filtrar
           </button>
-        </form>
-      </div>
+        </div>
+      </form>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        {inscriptions.length === 0 ? (
-          <div className="px-6 py-12 text-center text-gray-500">
-            Nenhuma inscrição encontrada.
+      {/* Tabela */}
+      <div
+        className="rounded-[20px] bg-white p-7"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="min-w-0">
+            <div
+              className="mono text-[10px] tracking-[0.14em]"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              {inscriptions.length} REGISTROS
+            </div>
+            <h2
+              className="display mt-1"
+              style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+            >
+              Lista de inscrições
+            </h2>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+        </div>
+
+        {inscriptions.length === 0 && (
+          <div
+            className="text-center py-16 mono text-[11px] tracking-[0.14em]"
+            style={{ color: 'var(--ink-50)' }}
+          >
+            NENHUMA INSCRIÇÃO ENCONTRADA
+          </div>
+        )}
+
+        {inscriptions.length > 0 && (
+          <div className="overflow-x-auto -mx-2">
+            <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left px-6 py-3 font-medium text-gray-500">Nome</th>
-                  <th className="text-left px-6 py-3 font-medium text-gray-500">Email</th>
-                  <th className="text-left px-6 py-3 font-medium text-gray-500">CPF</th>
-                  <th className="text-left px-6 py-3 font-medium text-gray-500">Evento</th>
-                  <th className="text-left px-6 py-3 font-medium text-gray-500">Status</th>
-                  <th className="text-left px-6 py-3 font-medium text-gray-500">Check-in</th>
-                  <th className="text-left px-6 py-3 font-medium text-gray-500">Data</th>
+                <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                  {['Nome', 'Email', 'CPF', 'Evento', 'Status', 'Check-in', 'Data'].map((h) => (
+                    <th
+                      key={h}
+                      className="mono text-[10px] tracking-[0.1em] py-3 px-2 font-medium uppercase"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {inscriptions.map((insc: any) => (
-                  <tr key={insc.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-6 py-3 font-medium text-gray-900">{insc.nome}</td>
-                    <td className="px-6 py-3 text-gray-600">{insc.email}</td>
-                    <td className="px-6 py-3 text-gray-600">{formatCPF(insc.cpf)}</td>
-                    <td className="px-6 py-3 text-gray-600">{insc.events?.title ?? '-'}</td>
-                    <td className="px-6 py-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          insc.payment_status === 'CONFIRMED' || insc.payment_status === 'RECEIVED'
-                            ? 'bg-green-100 text-green-700'
-                            : insc.payment_status === 'PENDING'
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}
+                {inscriptions.map((insc: any) => {
+                  const status = PAYMENT_PILL[insc.payment_status] ?? {
+                    bg: 'var(--paper-2)',
+                    color: 'var(--ink-50)',
+                    label: insc.payment_status?.toUpperCase() ?? '—',
+                  }
+                  const checked = !!checkinMap[insc.id]
+                  return (
+                    <tr key={insc.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                      <td
+                        className="py-4 px-2 font-medium max-w-[180px] truncate"
+                        style={{ color: 'var(--ink)' }}
+                        title={insc.nome}
                       >
-                        {insc.payment_status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3">
-                      {checkinMap[insc.id] ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                          Realizado
+                        {insc.nome}
+                      </td>
+                      <td
+                        className="py-4 px-2 max-w-[200px] truncate"
+                        style={{ color: 'var(--ink-70)' }}
+                        title={insc.email}
+                      >
+                        {insc.email}
+                      </td>
+                      <td
+                        className="py-4 px-2 mono text-[12px] whitespace-nowrap"
+                        style={{ color: 'var(--ink-70)' }}
+                      >
+                        {formatCPF(insc.cpf)}
+                      </td>
+                      <td
+                        className="py-4 px-2 max-w-[200px] truncate"
+                        style={{ color: 'var(--ink-70)' }}
+                        title={insc.events?.title ?? ''}
+                      >
+                        {insc.events?.title ?? '—'}
+                      </td>
+                      <td className="py-4 px-2">
+                        <span
+                          className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                          style={{ background: status.bg, color: status.color }}
+                        >
+                          {status.label}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                          Pendente
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-3 text-gray-500">{formatDateShort(insc.created_at)}</td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-4 px-2">
+                        {checked ? (
+                          <span
+                            className="mono inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                            style={{
+                              background: 'rgba(166,206,58,0.18)',
+                              color: '#3d5a0a',
+                            }}
+                          >
+                            <CheckCircle2 size={10} /> PRESENTE
+                          </span>
+                        ) : (
+                          <span
+                            className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                            style={{
+                              background: 'var(--paper-2)',
+                              color: 'var(--ink-50)',
+                            }}
+                          >
+                            AUSENTE
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        className="py-4 px-2 mono text-[11px] whitespace-nowrap"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        {formatDateShort(insc.created_at)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

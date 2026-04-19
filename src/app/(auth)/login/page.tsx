@@ -3,10 +3,8 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
+import { ArrowRight, Mail, Lock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import Input from '@/components/ui/Input';
-import Button from '@/components/ui/Button';
 
 function LoginForm() {
   const router = useRouter();
@@ -43,80 +41,175 @@ function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-md mx-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8">
-        <div className="flex justify-center mb-6">
-          <Image
-            src="/img/logo_branca.png"
-            alt="Semana Empresarial"
-            width={180}
-            height={60}
-            className="drop-shadow-md"
-          />
-        </div>
+    <div className="w-full max-w-[440px] mx-4 page-enter">
+      {/* Eyebrow */}
+      <div className="eyebrow mb-6 flex items-center justify-center">
+        <span className="dot" />
+        SEMANA EMPRESARIAL · 2026
+      </div>
 
-        <h1 className="text-2xl font-extrabold text-dark text-center mb-6">
-          Entrar
-        </h1>
+      {/* Title */}
+      <h1
+        className="display text-center mb-3"
+        style={{ fontSize: 'clamp(44px, 8vw, 64px)' }}
+      >
+        Entrar
+      </h1>
+      <p
+        className="text-center mb-10"
+        style={{ color: 'var(--ink-70)', fontSize: 15, lineHeight: 1.5 }}
+      >
+        Acesse sua conta para gerenciar
+        <br />
+        inscrições e ingressos.
+      </p>
 
+      {/* Card */}
+      <div
+        className="bg-white rounded-[20px] p-8"
+        style={{
+          border: '1px solid var(--line)',
+          boxShadow: '0 20px 60px -30px rgba(20,20,60,0.15)',
+        }}
+      >
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 text-center">
+          <div
+            className="mb-5 p-3 rounded-xl text-sm text-center"
+            style={{
+              background: '#fff1f2',
+              border: '1px solid #fecdd3',
+              color: '#b91c1c',
+            }}
+          >
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <Input
-            id="email"
-            label="Email"
-            type="email"
-            placeholder="seu@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div>
+            <label
+              htmlFor="email"
+              className="mono block text-[10px] tracking-[0.1em] mb-2"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              EMAIL
+            </label>
+            <div className="relative">
+              <Mail
+                size={16}
+                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: 'var(--ink-50)' }}
+              />
+              <input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="auth-input w-full pl-11 pr-4 py-3 rounded-xl text-sm bg-white focus:outline-none"
+              />
+            </div>
+          </div>
 
-          <Input
-            id="password"
-            label="Senha"
-            type="password"
-            placeholder="Sua senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <div>
+            <label
+              htmlFor="password"
+              className="mono block text-[10px] tracking-[0.1em] mb-2"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              SENHA
+            </label>
+            <div className="relative">
+              <Lock
+                size={16}
+                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: 'var(--ink-50)' }}
+              />
+              <input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="auth-input w-full pl-11 pr-4 py-3 rounded-xl text-sm bg-white focus:outline-none"
+              />
+            </div>
+          </div>
 
-          <Button
+          <button
             type="submit"
-            variant="orange"
-            size="lg"
-            className="w-full mt-2"
             disabled={loading}
+            className="btn btn-orange btn-lg w-full justify-center mt-1"
+            style={loading ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
           >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </Button>
+            {loading ? (
+              'Entrando...'
+            ) : (
+              <>
+                Entrar <ArrowRight size={16} />
+              </>
+            )}
+          </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Não tem uma conta?{' '}
-          <Link href="/registro" className="text-purple font-semibold hover:underline">
-            Registre-se
+        <div
+          className="mt-7 pt-6 text-center text-sm"
+          style={{ borderTop: '1px solid var(--line)', color: 'var(--ink-70)' }}
+        >
+          Ainda não tem conta?{' '}
+          <Link
+            href="/registro"
+            className="font-semibold hover:underline"
+            style={{ color: 'var(--laranja)' }}
+          >
+            Criar conta
           </Link>
-        </p>
+        </div>
       </div>
+
+      {/* Back link */}
+      <div className="text-center mt-8">
+        <Link
+          href="/"
+          className="mono text-[11px] tracking-[0.14em] hover:text-ink transition-colors"
+          style={{ color: 'var(--ink-50)' }}
+        >
+          ← VOLTAR PARA O SITE
+        </Link>
+      </div>
+
+      <style jsx>{`
+        .auth-input {
+          border: 1px solid var(--line);
+          color: var(--ink);
+          transition: border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+        .auth-input::placeholder {
+          color: var(--ink-50);
+        }
+        .auth-input:focus {
+          border-color: var(--azul);
+          box-shadow: 0 0 0 4px var(--azul-50);
+        }
+      `}</style>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="w-full max-w-md mx-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 text-center text-gray-400">
-          Carregando...
+    <Suspense
+      fallback={
+        <div
+          className="w-full max-w-[440px] mx-4 text-center mono text-[11px] tracking-[0.1em]"
+          style={{ color: 'var(--ink-50)' }}
+        >
+          CARREGANDO...
         </div>
-      </div>
-    }>
+      }
+    >
       <LoginForm />
     </Suspense>
   );

@@ -1,53 +1,43 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { validateCouponWithAssociate } from '@/lib/coupons'
 
 const validateCouponSchema = z.object({
   code: z.string().min(1),
-  event_id: z.string().uuid(),
+  // event_id pode vir como number ou string numérica do front
+  event_id: z.union([z.number(), z.string().regex(/^\d+$/)]),
+  cnpj: z.string().optional().nullable(),
 })
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
     const data = validateCouponSchema.parse(body)
+    const eventId = typeof data.event_id === 'number' ? data.event_id : Number(data.event_id)
 
     const supabase = createAdminClient()
+    const result = await validateCouponWithAssociate(supabase, {
+      code: data.code,
+      eventId,
+      cnpj: data.cnpj ?? null,
+    })
 
-    const { data: coupon, error } = await supabase
-      .from('coupons')
-      .select('*')
-      .eq('code', data.code.toUpperCase())
-      .eq('active', true)
-      .single()
-
-    if (error || !coupon) {
-      return NextResponse.json({ valid: false, message: 'Cupom não encontrado' })
-    }
-
-    // Check max uses
-    if (coupon.max_uses && coupon.current_uses >= coupon.max_uses) {
-      return NextResponse.json({ valid: false, message: 'Cupom esgotado' })
-    }
-
-    // Check date range
-    const now = new Date()
-    if (coupon.valid_from && new Date(coupon.valid_from) > now) {
-      return NextResponse.json({ valid: false, message: 'Cupom ainda não está válido' })
-    }
-    if (coupon.valid_until && new Date(coupon.valid_until) < now) {
-      return NextResponse.json({ valid: false, message: 'Cupom expirado' })
-    }
-
-    // Check event-specific coupon
-    if (coupon.event_id && coupon.event_id !== data.event_id) {
-      return NextResponse.json({ valid: false, message: 'Cupom não válido para este evento' })
+    if (!result.ok) {
+      return NextResponse.json({
+        valid: false,
+        message: result.message,
+        requires_cnpj: result.code === 'requires_cnpj',
+        error_code: result.code,
+      })
     }
 
     return NextResponse.json({
       valid: true,
-      discount_type: coupon.discount_type,
-      discount_value: coupon.discount_value,
+      discount_type: result.coupon.discount_type,
+      discount_value: result.coupon.discount_value,
+      scope: result.coupon.scope,
+      associate_id: result.associate_id,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -56,7 +46,6 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-
     console.error('Erro ao validar cupom:', error)
     return NextResponse.json(
       { valid: false, message: 'Erro interno do servidor' },

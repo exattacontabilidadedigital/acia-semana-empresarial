@@ -6,7 +6,7 @@ import { ArrowRight, Check } from 'lucide-react'
 type Tier = {
   id: string
   n: string
-  price: string
+  tagline: string
   c: string
   fg: string
   benefits: string[]
@@ -17,7 +17,7 @@ const TIERS: Tier[] = [
   {
     id: 'master',
     n: 'Master',
-    price: 'R$ 250 mil',
+    tagline: 'Patrocínio exclusivo',
     c: 'var(--laranja)',
     fg: 'white',
     benefits: [
@@ -34,7 +34,7 @@ const TIERS: Tier[] = [
   {
     id: 'diamante',
     n: 'Diamante',
-    price: 'R$ 120 mil',
+    tagline: 'Máximo destaque',
     c: 'var(--laranja)',
     fg: 'white',
     benefits: [
@@ -50,7 +50,7 @@ const TIERS: Tier[] = [
   {
     id: 'ouro',
     n: 'Ouro',
-    price: 'R$ 60 mil',
+    tagline: 'Presença estratégica',
     c: 'var(--verde)',
     fg: '#1a3300',
     benefits: [
@@ -65,7 +65,7 @@ const TIERS: Tier[] = [
   {
     id: 'prata',
     n: 'Prata',
-    price: 'R$ 25 mil',
+    tagline: 'Visibilidade garantida',
     c: 'var(--ciano)',
     fg: '#062e36',
     benefits: ['Logo em material', 'Stand 16m²', '2 rodadas', 'Menção institucional'],
@@ -74,7 +74,7 @@ const TIERS: Tier[] = [
   {
     id: 'apoio',
     n: 'Apoio',
-    price: 'Sob consulta',
+    tagline: 'Parceria institucional',
     c: 'white',
     fg: 'var(--ink)',
     benefits: ['Logo na listagem de apoio', 'Acesso credenciado', 'Visibilidade digital'],
@@ -209,7 +209,7 @@ export default function ParceirosPage() {
           </div>
           <h1
             className="display mb-8"
-            style={{ fontSize: 'clamp(48px, 8vw, 120px)', maxWidth: 1100 }}
+            style={{ fontSize: 80, maxWidth: 1100 }}
           >
             Quem faz a semana <span style={{ color: 'var(--ciano)' }}>acontecer.</span>
           </h1>
@@ -295,7 +295,7 @@ export default function ParceirosPage() {
             <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-12 items-center">
               <div>
                 <div className="mono text-[11px] opacity-70 tracking-[0.1em] mb-3">
-                  PATROCINADOR {tier.n.toUpperCase()}
+                  COTA · {tier.tagline.toUpperCase()}
                 </div>
                 <div
                   className="display mb-5"
@@ -305,9 +305,24 @@ export default function ParceirosPage() {
                     lineHeight: 0.95,
                   }}
                 >
-                  {tier.price}
+                  {tier.n}
                 </div>
-                <div className="text-sm opacity-80 mb-7">{tier.limit} · Investimento anual</div>
+                <div className="flex flex-wrap items-center gap-2 mb-7">
+                  <span
+                    className="mono text-[11px] tracking-[0.1em] rounded-full"
+                    style={{
+                      padding: '6px 12px',
+                      background: 'rgba(255,255,255,0.22)',
+                      color: tier.fg,
+                      border: '1px solid rgba(255,255,255,0.3)',
+                    }}
+                  >
+                    {tier.limit.toUpperCase()}
+                  </span>
+                  <span className="mono text-[11px] tracking-[0.1em] opacity-80">
+                    INVESTIMENTO SOB CONSULTA
+                  </span>
+                </div>
                 <button
                   className="btn"
                   style={{

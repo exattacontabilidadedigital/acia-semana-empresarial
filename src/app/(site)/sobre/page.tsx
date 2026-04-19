@@ -67,8 +67,8 @@ const PILLARS = [
   {
     k: '03',
     c: 'var(--ciano)',
-    t: 'Financiar',
-    d: 'O Mutirão de Crédito reúne bancos de fomento em um só espaço, destravando capital para empresas que querem crescer.',
+    t: 'Desenvolver',
+    d: 'Transformar conexões, capacitação e crédito em crescimento real — para as empresas, para os empreendedores e para a economia da região.',
   },
 ]
 
@@ -134,10 +134,10 @@ export default function SobrePage() {
           </div>
           <h1
             className="display mb-10"
-            style={{ fontSize: 'clamp(48px, 8vw, 120px)', maxWidth: 1100 }}
+            style={{ fontSize: 80, maxWidth: 1100 }}
           >
-            Um território inteiro em{' '}
-            <span style={{ color: 'var(--ciano)' }}>modo negócio</span> durante uma semana.
+            Conexões que geram vendas, vendas que geram{' '}
+            <span style={{ color: 'var(--ciano)' }}>desenvolvimento</span>.
           </h1>
           <div
             className="grid grid-cols-1 lg:grid-cols-2 gap-16 pt-8"
@@ -316,11 +316,21 @@ export default function SobrePage() {
         <div className="container-site">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div
-              className="ph rounded-2xl"
-              style={{ height: 480 }}
-              aria-hidden
+              className="rounded-2xl overflow-hidden"
+              style={{
+                height: 560,
+                background: '#fafafa',
+                border: '1px solid var(--line)',
+              }}
             >
-              <span>FOTO ABERTURA · PALCO</span>
+              <iframe
+                src="https://www.instagram.com/p/DXP-djWjkqR/embed/"
+                title="Semana Empresarial de Açailândia no Instagram"
+                allow="encrypted-media; picture-in-picture; web-share"
+                allowFullScreen
+                scrolling="no"
+                style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+              />
             </div>
             <div>
               <div className="eyebrow mb-5">

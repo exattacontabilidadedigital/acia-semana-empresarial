@@ -9,10 +9,10 @@ import {
   Ticket,
   Tag,
   Clock,
-  TrendingUp,
   AlertCircle,
   ShoppingCart,
   AlertTriangle,
+  ArrowUpRight,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +27,6 @@ export default async function AdminDashboardPage() {
   const threeDaysAgo = new Date()
   threeDaysAgo.setDate(now.getDate() - 3)
 
-  const nowISO = now.toISOString()
   const sevenDaysISO = sevenDaysFromNow.toISOString().split('T')[0]
   const todayDate = now.toISOString().split('T')[0]
   const threeDaysAgoISO = threeDaysAgo.toISOString()
@@ -84,7 +83,6 @@ export default async function AdminDashboardPage() {
       .select('id, nome, email, total_amount, payment_status, created_at, events(title)')
       .order('created_at', { ascending: false })
       .limit(10),
-    // Upcoming events in next 7 days with inscription counts
     supabase
       .from('events')
       .select('id, title, event_date, start_time, capacity')
@@ -92,7 +90,6 @@ export default async function AdminDashboardPage() {
       .lte('event_date', sevenDaysISO)
       .eq('status', 'active')
       .order('event_date', { ascending: true }),
-    // Expired pending payments (older than 3 days)
     supabase
       .from('inscriptions')
       .select('*', { count: 'exact', head: true })
@@ -105,7 +102,6 @@ export default async function AdminDashboardPage() {
     ? Math.round(((totalCheckins ?? 0) / (totalTickets ?? 1)) * 100)
     : 0
 
-  // Fetch inscription counts for upcoming events
   let upcomingEventsWithCounts: {
     id: number
     title: string
@@ -139,41 +135,73 @@ export default async function AdminDashboardPage() {
     })
   }
 
-  // Find events almost sold out (>80% capacity filled) from upcoming events
   const almostSoldOut = upcomingEventsWithCounts.filter((ev) => ev.fillPercentage > 80)
 
-  const statusColors: Record<string, string> = {
-    confirmed: 'bg-green-100 text-green-800',
-    free: 'bg-blue-100 text-blue-800',
-    pending: 'bg-yellow-100 text-yellow-800',
-    failed: 'bg-red-100 text-red-800',
-    refunded: 'bg-gray-100 text-gray-800',
+  const statusStyles: Record<string, { bg: string; color: string; label: string }> = {
+    confirmed: { bg: 'rgba(166,206,58,0.18)', color: '#3d5a0a', label: 'CONFIRMADO' },
+    free: { bg: 'rgba(86,198,208,0.18)', color: '#0a4650', label: 'GRATUITO' },
+    pending: { bg: 'rgba(248,130,30,0.15)', color: '#b85d00', label: 'PENDENTE' },
+    failed: { bg: '#fee2e2', color: '#991b1b', label: 'FALHOU' },
+    refunded: { bg: 'var(--paper-2)', color: 'var(--ink-50)', label: 'ESTORNADO' },
   }
 
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-gray-900 font-montserrat">Dashboard</h1>
+    <div className="page-enter" style={{ color: 'var(--ink)' }}>
+      {/* Header */}
+      <div className="mb-10">
+        <div className="eyebrow mb-4">
+          <span className="dot" />
+          PAINEL ADMINISTRATIVO · {now.getFullYear()}
+        </div>
+        <h1 className="display" style={{ fontSize: 'clamp(40px, 5vw, 56px)' }}>
+          Dashboard
+        </h1>
+        <p
+          className="mt-3"
+          style={{ color: 'var(--ink-70)', fontSize: 15, maxWidth: 560 }}
+        >
+          Visão geral em tempo real de eventos, inscrições, receita e check-ins.
+        </p>
+      </div>
 
       {/* Alertas */}
       {(almostSoldOut.length > 0 || (expiredPendingCount ?? 0) > 0) && (
-        <div className="mb-6 space-y-3">
+        <div className="mb-8 space-y-3">
           {almostSoldOut.map((ev) => (
-            <div key={ev.id} className="flex items-center gap-3 rounded-lg border border-orange/30 bg-orange/5 p-4">
-              <AlertTriangle className="text-orange shrink-0" size={20} />
+            <div
+              key={ev.id}
+              className="flex items-center gap-3 rounded-2xl p-4"
+              style={{
+                background: 'rgba(248,130,30,0.06)',
+                border: '1px solid rgba(248,130,30,0.25)',
+              }}
+            >
+              <AlertTriangle
+                className="shrink-0"
+                size={18}
+                style={{ color: 'var(--laranja)' }}
+              />
               <div className="text-sm">
-                <span className="font-semibold text-gray-900">{ev.title}</span>
-                <span className="text-gray-600">
+                <span className="font-semibold" style={{ color: 'var(--ink)' }}>
+                  {ev.title}
+                </span>
+                <span style={{ color: 'var(--ink-70)' }}>
                   {' '}quase esgotado — {ev.inscriptionCount}/{ev.capacity ?? '?'} ({ev.fillPercentage}%)
                 </span>
               </div>
             </div>
           ))}
           {(expiredPendingCount ?? 0) > 0 && (
-            <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
-              <AlertCircle className="text-red-500 shrink-0" size={20} />
+            <div
+              className="flex items-center gap-3 rounded-2xl p-4"
+              style={{ background: '#fef2f2', border: '1px solid #fecaca' }}
+            >
+              <AlertCircle className="shrink-0" size={18} style={{ color: '#dc2626' }} />
               <div className="text-sm">
-                <span className="font-semibold text-red-800">Pagamentos expirados:</span>
-                <span className="text-red-700">
+                <span className="font-semibold" style={{ color: '#991b1b' }}>
+                  Pagamentos expirados:
+                </span>
+                <span style={{ color: '#b91c1c' }}>
                   {' '}{expiredPendingCount} inscrição(ões) pendente(s) há mais de 3 dias
                 </span>
               </div>
@@ -184,145 +212,181 @@ export default async function AdminDashboardPage() {
 
       {/* Main Stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href="/admin/eventos" className="group rounded-lg bg-white p-5 shadow-sm border-l-4 border-purple hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Eventos</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">{totalEvents ?? 0}</p>
-              <p className="text-xs text-green-600 mt-1">{activeEvents ?? 0} ativos</p>
-            </div>
-            <div className="rounded-lg p-3 bg-purple text-white group-hover:scale-110 transition-transform">
-              <Calendar size={24} />
-            </div>
-          </div>
-        </Link>
-
-        <Link href="/admin/inscricoes" className="group rounded-lg bg-white p-5 shadow-sm border-l-4 border-cyan hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Inscrições</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">{confirmedInscriptions ?? 0}</p>
-              <div className="flex gap-2 mt-1">
-                {(pendingInscriptions ?? 0) > 0 && (
-                  <span className="text-xs text-yellow-600 flex items-center gap-0.5">
-                    <Clock size={10} />
-                    {pendingInscriptions} pendentes
-                  </span>
-                )}
-                {(freeInscriptions ?? 0) > 0 && (
-                  <span className="text-xs text-blue-600">{freeInscriptions} gratuitas</span>
-                )}
+        <StatCard
+          href="/admin/eventos"
+          label="EVENTOS"
+          value={totalEvents ?? 0}
+          hint={`${activeEvents ?? 0} ativos`}
+          icon={<Calendar size={18} />}
+          accent="var(--azul)"
+          accentBg="var(--azul-50)"
+        />
+        <StatCard
+          href="/admin/inscricoes"
+          label="INSCRIÇÕES"
+          value={confirmedInscriptions ?? 0}
+          hint={
+            <span className="flex flex-wrap gap-x-2 gap-y-0.5">
+              {(pendingInscriptions ?? 0) > 0 && (
+                <span className="flex items-center gap-1" style={{ color: 'var(--laranja-600)' }}>
+                  <Clock size={10} />
+                  {pendingInscriptions} pendentes
+                </span>
+              )}
+              {(freeInscriptions ?? 0) > 0 && (
+                <span style={{ color: 'var(--ciano-600)' }}>{freeInscriptions} gratuitas</span>
+              )}
+              {(pendingInscriptions ?? 0) === 0 && (freeInscriptions ?? 0) === 0 && (
+                <span style={{ color: 'var(--ink-50)' }}>Total confirmadas</span>
+              )}
+            </span>
+          }
+          icon={<Users size={18} />}
+          accent="var(--ciano)"
+          accentBg="rgba(86,198,208,0.12)"
+        />
+        <StatCard
+          label="RECEITA"
+          value={formatCurrency(totalRevenue)}
+          hint={`${totalInscriptions ?? 0} inscrições no total`}
+          icon={<DollarSign size={18} />}
+          accent="var(--laranja)"
+          accentBg="rgba(248,130,30,0.12)"
+          monoValue
+        />
+        <StatCard
+          href="/admin/checkin"
+          label="CHECK-INS"
+          value={totalCheckins ?? 0}
+          hint={
+            <div className="flex items-center gap-2">
+              <div
+                className="h-1.5 rounded-full overflow-hidden"
+                style={{ width: 80, background: 'var(--paper-2)' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${checkinRate}%`, background: 'var(--verde)' }}
+                />
               </div>
+              <span style={{ color: 'var(--ink-50)' }}>{checkinRate}%</span>
             </div>
-            <div className="rounded-lg p-3 bg-cyan text-white group-hover:scale-110 transition-transform">
-              <Users size={24} />
-            </div>
-          </div>
-        </Link>
-
-        <div className="rounded-lg bg-white p-5 shadow-sm border-l-4 border-orange">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Receita</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
-              <p className="text-xs text-gray-400 mt-1">{totalInscriptions ?? 0} inscrições totais</p>
-            </div>
-            <div className="rounded-lg p-3 bg-orange text-white">
-              <DollarSign size={24} />
-            </div>
-          </div>
-        </div>
-
-        <Link href="/admin/checkin" className="group rounded-lg bg-white p-5 shadow-sm border-l-4 border-green-500 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Check-ins</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">{totalCheckins ?? 0}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-green-500 rounded-full" style={{ width: `${checkinRate}%` }} />
-                </div>
-                <span className="text-xs text-gray-500">{checkinRate}%</span>
-              </div>
-            </div>
-            <div className="rounded-lg p-3 bg-green-500 text-white group-hover:scale-110 transition-transform">
-              <CheckCircle size={24} />
-            </div>
-          </div>
-        </Link>
+          }
+          icon={<CheckCircle size={18} />}
+          accent="var(--verde-600)"
+          accentBg="rgba(166,206,58,0.18)"
+        />
       </div>
 
       {/* Secondary Stats */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <Link href="/admin/cupons" className="group flex items-center gap-4 rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-          <div className="rounded-lg p-2.5 bg-pink-100 text-pink-600 group-hover:scale-110 transition-transform">
-            <Tag size={20} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">{totalCoupons ?? 0} Cupons</p>
-            <p className="text-xs text-gray-500">{activeCoupons ?? 0} ativos</p>
-          </div>
-        </Link>
-
-        <div className="flex items-center gap-4 rounded-lg bg-white p-4 shadow-sm">
-          <div className="rounded-lg p-2.5 bg-indigo-100 text-indigo-600">
-            <Ticket size={20} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">{totalTickets ?? 0} Ingressos</p>
-            <p className="text-xs text-gray-500">{(totalTickets ?? 0) - (totalCheckins ?? 0)} não utilizados</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-lg bg-white p-4 shadow-sm">
-          <div className="rounded-lg p-2.5 bg-amber-100 text-amber-600">
-            <ShoppingCart size={20} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">{totalGroups ?? 0} Compras</p>
-            <p className="text-xs text-gray-500">via carrinho</p>
-          </div>
-        </div>
+      <div className="mb-10 grid gap-3 sm:grid-cols-3">
+        <MiniCard
+          href="/admin/cupons"
+          icon={<Tag size={16} />}
+          title={`${totalCoupons ?? 0} Cupons`}
+          subtitle={`${activeCoupons ?? 0} ativos`}
+          accent="var(--laranja)"
+        />
+        <MiniCard
+          icon={<Ticket size={16} />}
+          title={`${totalTickets ?? 0} Ingressos`}
+          subtitle={`${(totalTickets ?? 0) - (totalCheckins ?? 0)} não utilizados`}
+          accent="var(--azul)"
+        />
+        <MiniCard
+          icon={<ShoppingCart size={16} />}
+          title={`${totalGroups ?? 0} Compras`}
+          subtitle="via carrinho"
+          accent="var(--ciano)"
+        />
       </div>
 
       {/* Próximos Eventos */}
       {upcomingEventsWithCounts.length > 0 && (
-        <div className="mb-8 rounded-lg bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Próximos Eventos</h2>
-            <Link href="/admin/eventos" className="text-xs text-purple font-medium hover:underline">
-              Ver todos
+        <div
+          className="mb-8 rounded-[20px] bg-white p-7"
+          style={{ border: '1px solid var(--line)' }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <div className="min-w-0">
+              <div
+                className="mono text-[10px] tracking-[0.14em]"
+                style={{ color: 'var(--ink-50)' }}
+              >
+                PRÓXIMOS 7 DIAS
+              </div>
+              <h2
+                className="display mt-1"
+                style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+              >
+                Eventos no horizonte
+              </h2>
+            </div>
+            <Link
+              href="/admin/eventos"
+              className="mono text-[11px] tracking-[0.1em] flex items-center gap-1 hover:opacity-70 transition-opacity shrink-0 whitespace-nowrap"
+              style={{ color: 'var(--azul)' }}
+            >
+              VER TODOS <ArrowUpRight size={12} />
             </Link>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {upcomingEventsWithCounts.map((ev) => (
-              <div key={ev.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-4 hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-purple/10 p-2">
-                    <Calendar className="text-purple" size={18} />
+              <div
+                key={ev.id}
+                className="flex items-center justify-between rounded-xl p-4 transition-colors"
+                style={{ border: '1px solid var(--line)' }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="rounded-lg p-2 shrink-0"
+                    style={{ background: 'var(--azul-50)' }}
+                  >
+                    <Calendar size={16} style={{ color: 'var(--azul)' }} />
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{ev.title}</p>
-                    <p className="text-xs text-gray-500">
-                      {formatDateShort(ev.event_date)}
-                      {ev.start_time ? ` às ${ev.start_time.slice(0, 5)}` : ''}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
+                      {ev.title}
+                    </p>
+                    <p
+                      className="mono text-[10px] tracking-[0.06em] mt-0.5"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
+                      {formatDateShort(ev.event_date).toUpperCase()}
+                      {ev.start_time ? ` · ${ev.start_time.slice(0, 5)}` : ''}
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {ev.inscriptionCount}/{ev.capacity ?? '?'}
+                <div className="text-right shrink-0 ml-3">
+                  <p
+                    className="display text-base whitespace-nowrap"
+                    style={{ letterSpacing: '-0.01em' }}
+                  >
+                    {ev.inscriptionCount}
+                    <span style={{ color: 'var(--ink-50)', fontWeight: 400 }}>
+                      /{ev.capacity ?? '?'}
+                    </span>
                   </p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="flex items-center gap-2 mt-1 justify-end">
+                    <div
+                      className="h-1.5 rounded-full overflow-hidden"
+                      style={{ width: 72, background: 'var(--paper-2)' }}
+                    >
                       <div
-                        className={`h-full rounded-full ${
-                          ev.fillPercentage > 80 ? 'bg-orange' : 'bg-green-500'
-                        }`}
-                        style={{ width: `${Math.min(ev.fillPercentage, 100)}%` }}
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.min(ev.fillPercentage, 100)}%`,
+                          background:
+                            ev.fillPercentage > 80 ? 'var(--laranja)' : 'var(--verde)',
+                        }}
                       />
                     </div>
-                    <span className="text-xs text-gray-500">{ev.fillPercentage}%</span>
+                    <span
+                      className="mono text-[10px] tracking-[0.06em]"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
+                      {ev.fillPercentage}%
+                    </span>
                   </div>
                 </div>
               </div>
@@ -332,46 +396,102 @@ export default async function AdminDashboardPage() {
       )}
 
       {/* Recent Inscriptions */}
-      <div className="rounded-lg bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Inscrições Recentes</h2>
-          <Link href="/admin/inscricoes" className="text-xs text-purple font-medium hover:underline">
-            Ver todas
+      <div
+        className="rounded-[20px] bg-white p-7"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="min-w-0">
+            <div
+              className="mono text-[10px] tracking-[0.14em]"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              ÚLTIMAS 10
+            </div>
+            <h2
+              className="display mt-1"
+              style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+            >
+              Inscrições recentes
+            </h2>
+          </div>
+          <Link
+            href="/admin/inscricoes"
+            className="mono text-[11px] tracking-[0.1em] flex items-center gap-1 hover:opacity-70 transition-opacity shrink-0 whitespace-nowrap"
+            style={{ color: 'var(--azul)' }}
+          >
+            VER TODAS <ArrowUpRight size={12} />
           </Link>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-2">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b text-gray-500">
-                <th className="pb-3 font-medium">Nome</th>
-                <th className="pb-3 font-medium">Evento</th>
-                <th className="pb-3 font-medium">Valor</th>
-                <th className="pb-3 font-medium">Status</th>
-                <th className="pb-3 font-medium">Data</th>
+              <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                {['Nome', 'Evento', 'Valor', 'Status', 'Data'].map((h) => (
+                  <th
+                    key={h}
+                    className="mono text-[10px] tracking-[0.1em] py-3 px-2 font-medium uppercase"
+                    style={{ color: 'var(--ink-50)' }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y">
-              {recentInscriptions?.map((insc: any) => (
-                <tr key={insc.id} className="text-gray-700">
-                  <td className="py-3">{insc.nome}</td>
-                  <td className="py-3">{insc.events?.title ?? '—'}</td>
-                  <td className="py-3">{formatCurrency(insc.total_amount)}</td>
-                  <td className="py-3">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                        statusColors[insc.payment_status] ?? 'bg-gray-100 text-gray-800'
-                      }`}
+            <tbody>
+              {recentInscriptions?.map((insc: any) => {
+                const status = statusStyles[insc.payment_status] ?? {
+                  bg: 'var(--paper-2)',
+                  color: 'var(--ink-50)',
+                  label: insc.payment_status,
+                }
+                return (
+                  <tr key={insc.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <td
+                      className="py-4 px-2 font-medium max-w-[180px] truncate"
+                      style={{ color: 'var(--ink)' }}
+                      title={insc.nome}
                     >
-                      {insc.payment_status}
-                    </span>
-                  </td>
-                  <td className="py-3">{formatDateShort(insc.created_at)}</td>
-                </tr>
-              ))}
+                      {insc.nome}
+                    </td>
+                    <td
+                      className="py-4 px-2 max-w-[220px] truncate"
+                      style={{ color: 'var(--ink-70)' }}
+                      title={insc.events?.title ?? '—'}
+                    >
+                      {insc.events?.title ?? '—'}
+                    </td>
+                    <td
+                      className="py-4 px-2 mono whitespace-nowrap"
+                      style={{ color: 'var(--ink)' }}
+                    >
+                      {formatCurrency(insc.total_amount)}
+                    </td>
+                    <td className="py-4 px-2">
+                      <span
+                        className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                        style={{ background: status.bg, color: status.color }}
+                      >
+                        {status.label}
+                      </span>
+                    </td>
+                    <td
+                      className="py-4 px-2 mono text-[11px] whitespace-nowrap"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
+                      {formatDateShort(insc.created_at)}
+                    </td>
+                  </tr>
+                )
+              })}
               {(!recentInscriptions || recentInscriptions.length === 0) && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-gray-400">
-                    Nenhuma inscrição encontrada.
+                  <td
+                    colSpan={5}
+                    className="py-10 text-center mono text-[11px] tracking-[0.1em]"
+                    style={{ color: 'var(--ink-50)' }}
+                  >
+                    NENHUMA INSCRIÇÃO ENCONTRADA
                   </td>
                 </tr>
               )}
@@ -381,4 +501,126 @@ export default async function AdminDashboardPage() {
       </div>
     </div>
   )
+}
+
+function StatCard({
+  href,
+  label,
+  value,
+  hint,
+  icon,
+  accent,
+  accentBg,
+  monoValue,
+}: {
+  href?: string
+  label: string
+  value: number | string
+  hint: React.ReactNode
+  icon: React.ReactNode
+  accent: string
+  accentBg: string
+  monoValue?: boolean
+}) {
+  const content = (
+    <div
+      className="group h-full rounded-[20px] bg-white p-5 transition-all hover:-translate-y-0.5 overflow-hidden"
+      style={{
+        border: '1px solid var(--line)',
+        boxShadow: '0 1px 0 rgba(0,0,0,0.02)',
+      }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div
+          className="mono text-[10px] tracking-[0.14em] truncate min-w-0 flex-1"
+          style={{ color: 'var(--ink-50)' }}
+        >
+          {label}
+        </div>
+        <div
+          className="rounded-lg p-2 transition-transform group-hover:scale-110 shrink-0"
+          style={{ background: accentBg, color: accent }}
+        >
+          {icon}
+        </div>
+      </div>
+      <div
+        className={`${monoValue ? 'mono font-bold' : 'display'} truncate`}
+        title={typeof value === 'string' || typeof value === 'number' ? String(value) : undefined}
+        style={{
+          fontSize: monoValue
+            ? 'clamp(18px, 2.4vw, 24px)'
+            : 'clamp(28px, 3.4vw, 36px)',
+          letterSpacing: monoValue ? '-0.02em' : '-0.03em',
+          lineHeight: 1,
+          color: 'var(--ink)',
+        }}
+      >
+        {value}
+      </div>
+      <div
+        className="text-xs mt-2 min-w-0 break-words"
+        style={{ color: 'var(--ink-50)' }}
+      >
+        {hint}
+      </div>
+    </div>
+  )
+
+  if (href) {
+    return (
+      <Link href={href} className="block">
+        {content}
+      </Link>
+    )
+  }
+  return content
+}
+
+function MiniCard({
+  href,
+  icon,
+  title,
+  subtitle,
+  accent,
+}: {
+  href?: string
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+  accent: string
+}) {
+  const content = (
+    <div
+      className="group flex items-center gap-3 rounded-2xl bg-white p-4 transition-all hover:-translate-y-0.5"
+      style={{ border: '1px solid var(--line)' }}
+    >
+      <div
+        className="rounded-lg p-2.5 transition-transform group-hover:scale-110 shrink-0"
+        style={{ background: 'var(--paper-2)', color: accent }}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
+          {title}
+        </p>
+        <p
+          className="mono text-[10px] tracking-[0.06em] mt-0.5 truncate"
+          style={{ color: 'var(--ink-50)' }}
+        >
+          {subtitle}
+        </p>
+      </div>
+    </div>
+  )
+
+  if (href) {
+    return (
+      <Link href={href} className="block">
+        {content}
+      </Link>
+    )
+  }
+  return content
 }

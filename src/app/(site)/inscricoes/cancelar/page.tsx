@@ -97,7 +97,7 @@ function CancelarContent() {
           <p className="text-gray-500 text-sm mb-6">
             Sua inscrição foi cancelada com sucesso. Você pode fazer uma nova inscrição a qualquer momento.
           </p>
-          <Link href="/eventos" className="btn btn-orange">Ver eventos</Link>
+          <Link href="/inscricoes" className="btn btn-orange">Ver eventos</Link>
         </>
       )}
 

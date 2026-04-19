@@ -1,272 +1,325 @@
-'use client'
+import Link from 'next/link'
+import Image from 'next/image'
+import { Building2, ArrowUpRight } from 'lucide-react'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { ORG_TYPE_LABELS } from '@/lib/orgs'
+import NovaOrgModal from '@/components/admin/NovaOrgModal'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import Pagination from '@/components/ui/Pagination'
-import { Plus, X, Loader2, Building2 } from 'lucide-react'
-import type { Partner } from '@/types/database'
+export const dynamic = 'force-dynamic'
 
-const PAGE_SIZE = 20
-
-type PartnerWithUser = Partner & {
-  user_profiles?: { full_name: string | null } | null
+type OrgRow = {
+  id: string
+  name: string
+  slug: string
+  type: string
+  status: string
+  logo_url: string | null
+  created_at: string
 }
 
-export default function AdminParceirosPage() {
-  const supabase = createClient()
-  const [partners, setPartners] = useState<PartnerWithUser[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [page, setPage] = useState(1)
+const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
+  active: {
+    bg: 'rgba(166,206,58,0.18)',
+    color: '#3d5a0a',
+    label: 'ATIVA',
+  },
+  suspended: {
+    bg: 'rgba(248,130,30,0.15)',
+    color: '#b85d00',
+    label: 'SUSPENSA',
+  },
+  archived: {
+    bg: 'var(--paper-2)',
+    color: 'var(--ink-50)',
+    label: 'ARQUIVADA',
+  },
+}
 
-  const [form, setForm] = useState({
-    user_email: '',
-    organization_name: '',
-  })
-  const [logoFile, setLogoFile] = useState<File | null>(null)
+export default async function AdminParceirosPage({
+  searchParams,
+}: {
+  searchParams: { error?: string }
+}) {
+  const supabase = createServerSupabaseClient()
 
-  async function fetchPartners() {
-    setLoading(true)
-    const { data } = await supabase
-      .from('partners')
-      .select('*, user_profiles(full_name)')
-      .order('created_at', { ascending: false })
+  const [{ data: orgs }, { count: totalOrgs }, { count: activeOrgs }] =
+    await Promise.all([
+      supabase
+        .from('organizations')
+        .select('id, name, slug, type, status, logo_url, created_at')
+        .order('created_at', { ascending: false }),
+      supabase.from('organizations').select('*', { count: 'exact', head: true }),
+      supabase
+        .from('organizations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active'),
+    ])
 
-    setPartners((data as PartnerWithUser[]) ?? [])
-    setLoading(false)
-  }
+  // Counts por org (membros e eventos) — fetch agregado
+  const orgIds = (orgs ?? []).map((o: OrgRow) => o.id)
+  let membersByOrg: Record<string, number> = {}
+  let eventsByOrg: Record<string, number> = {}
 
-  useEffect(() => {
-    fetchPartners()
-  }, [])
+  if (orgIds.length > 0) {
+    const [{ data: memberRows }, { data: eventRows }] = await Promise.all([
+      supabase
+        .from('organization_members')
+        .select('organization_id')
+        .in('organization_id', orgIds)
+        .eq('status', 'active'),
+      supabase
+        .from('events')
+        .select('organization_id')
+        .in('organization_id', orgIds),
+    ])
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const { name, value } = e.target
-    setForm((prev) => ({ ...prev, [name]: value }))
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-
-    try {
-      // Look up user by email from auth (we use a simple approach: query user_profiles is not possible by email,
-      // so we search inscriptions or rely on admin knowing the user_id).
-      // For now, we'll try to find user via Supabase Admin or a workaround.
-      // Simplest: use the email to find existing inscriptions with that email.
-
-      // Actually, we need auth admin to look up by email. Since this is client-side,
-      // we'll ask for the user_id or look up via an RPC or just store with a placeholder.
-      // For a practical approach, we search the auth users or use an API route.
-
-      // Workaround: try to find a user_profile with a matching inscription email
-      const { data: inscriptionMatch } = await supabase
-        .from('inscriptions')
-        .select('user_id')
-        .eq('email', form.user_email)
-        .not('user_id', 'is', null)
-        .limit(1)
-        .single()
-
-      let userId = inscriptionMatch?.user_id
-
-      if (!userId) {
-        setError('Nenhum usuário encontrado com este email. O usuário precisa ter se inscrito em pelo menos um evento.')
-        setSaving(false)
-        return
-      }
-
-      let logo_url: string | null = null
-
-      if (logoFile) {
-        const ext = logoFile.name.split('.').pop()
-        const path = `partners/${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('images')
-          .upload(path, logoFile)
-        if (uploadError) throw uploadError
-
-        const { data: urlData } = supabase.storage.from('images').getPublicUrl(path)
-        logo_url = urlData.publicUrl
-      }
-
-      // Create partner
-      const { error: insertError } = await supabase.from('partners').insert({
-        user_id: userId,
-        organization_name: form.organization_name,
-        logo_url,
-      })
-      if (insertError) throw insertError
-
-      // Assign partner role (role_id = 3 assumed for partner, adjust as needed)
-      // First find the partner role
-      const { data: partnerRole } = await supabase
-        .from('roles')
-        .select('id')
-        .eq('name', 'partner')
-        .single()
-
-      if (partnerRole) {
-        await supabase.from('users_roles').insert({
-          user_id: userId,
-          role_id: partnerRole.id,
-        })
-      }
-
-      setShowForm(false)
-      setForm({ user_email: '', organization_name: '' })
-      setLogoFile(null)
-      fetchPartners()
-    } catch (err: any) {
-      setError(err.message || 'Erro ao criar parceiro')
-    } finally {
-      setSaving(false)
+    for (const r of memberRows ?? []) {
+      const k = (r as any).organization_id as string
+      membersByOrg[k] = (membersByOrg[k] ?? 0) + 1
+    }
+    for (const r of eventRows ?? []) {
+      const k = (r as any).organization_id as string
+      eventsByOrg[k] = (eventsByOrg[k] ?? 0) + 1
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="animate-spin text-purple" size={32} />
-      </div>
-    )
-  }
-
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 font-montserrat">Parceiros</h1>
-        <button
-          onClick={() => {
-            setShowForm(!showForm)
-            setError('')
-          }}
-          className="inline-flex items-center gap-2 rounded-lg bg-purple px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-dark"
-        >
-          {showForm ? <X size={18} /> : <Plus size={18} />}
-          {showForm ? 'Cancelar' : 'Novo Parceiro'}
-        </button>
+    <div className="page-enter">
+      {/* Header */}
+      <div className="mb-10 flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <div className="eyebrow mb-4">
+            <span className="dot" />
+            CADASTROS · PARCEIROS
+          </div>
+          <h1 className="display" style={{ fontSize: 'clamp(40px, 5vw, 56px)' }}>
+            Organizações
+          </h1>
+          <p
+            className="mt-3"
+            style={{ color: 'var(--ink-70)', fontSize: 15, maxWidth: 560 }}
+          >
+            Entidades parceiras (Sistema S, públicas, privadas) com equipes que
+            promovem eventos durante a Semana Empresarial.
+          </p>
+        </div>
+        <NovaOrgModal />
       </div>
 
-      {/* New partner form */}
-      {showForm && (
-        <div className="mb-6 rounded-lg bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">Cadastrar Parceiro</h2>
-
-          {error && (
-            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Email do Usuário</label>
-              <input
-                type="email"
-                name="user_email"
-                value={form.user_email}
-                onChange={handleChange}
-                required
-                placeholder="email@exemplo.com"
-                className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
-              />
-              <p className="mt-1 text-xs text-gray-400">
-                O usuário precisa já estar cadastrado no sistema.
-              </p>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Nome da Organização</label>
-              <input
-                type="text"
-                name="organization_name"
-                value={form.organization_name}
-                onChange={handleChange}
-                required
-                className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Logo</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
-                className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-purple/10 file:px-3 file:py-1 file:text-sm file:text-purple"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-purple px-6 py-2.5 text-sm font-medium text-white hover:bg-purple-dark disabled:opacity-50"
-            >
-              {saving ? 'Salvando...' : 'Cadastrar Parceiro'}
-            </button>
-          </form>
+      {searchParams.error && (
+        <div
+          className="mb-6 p-3 rounded-xl text-sm"
+          style={{
+            background: '#fff1f2',
+            border: '1px solid #fecdd3',
+            color: '#b91c1c',
+          }}
+        >
+          {searchParams.error}
         </div>
       )}
 
-      {/* Partners list */}
-      <div className="rounded-lg bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b text-gray-500">
-                <th className="px-6 py-3 font-medium">Organização</th>
-                <th className="px-6 py-3 font-medium">Usuário</th>
-                <th className="px-6 py-3 font-medium">Logo</th>
-                <th className="px-6 py-3 font-medium">Cadastrado em</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {partners.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((partner) => (
-                <tr key={partner.id} className="text-gray-700 hover:bg-gray-50">
-                  <td className="px-6 py-3 font-medium">
-                    <div className="flex items-center gap-2">
-                      <Building2 size={16} className="text-purple" />
-                      {partner.organization_name}
-                    </div>
-                  </td>
-                  <td className="px-6 py-3">
-                    {partner.user_profiles?.full_name ?? partner.user_id}
-                  </td>
-                  <td className="px-6 py-3">
-                    {partner.logo_url ? (
-                      <img
-                        src={partner.logo_url}
-                        alt={partner.organization_name}
-                        className="h-8 w-8 rounded object-contain"
-                      />
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-3">
-                    {new Date(partner.created_at).toLocaleDateString('pt-BR')}
-                  </td>
-                </tr>
-              ))}
-              {partners.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-400">
-                    Nenhum parceiro cadastrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {/* Stats */}
+      <div className="mb-8 grid gap-3 sm:grid-cols-3">
+        <MiniStat
+          label="TOTAL"
+          value={totalOrgs ?? 0}
+          accent="var(--azul)"
+          accentBg="var(--azul-50)"
+        />
+        <MiniStat
+          label="ATIVAS"
+          value={activeOrgs ?? 0}
+          accent="var(--verde-600)"
+          accentBg="rgba(166,206,58,0.18)"
+        />
+        <MiniStat
+          label="SUSPENSAS / ARQUIVADAS"
+          value={(totalOrgs ?? 0) - (activeOrgs ?? 0)}
+          accent="var(--ink-50)"
+          accentBg="var(--paper-2)"
+        />
+      </div>
+
+      {/* List card */}
+      <div
+        className="rounded-[20px] bg-white p-7"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="min-w-0">
+            <div
+              className="mono text-[10px] tracking-[0.14em]"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              {orgs?.length ?? 0} REGISTROS
+            </div>
+            <h2
+              className="display mt-1"
+              style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+            >
+              Lista de organizações
+            </h2>
+          </div>
         </div>
 
-        <Pagination
-          currentPage={page}
-          totalPages={Math.ceil(partners.length / PAGE_SIZE)}
-          totalItems={partners.length}
-          onPageChange={setPage}
-        />
+        {(!orgs || orgs.length === 0) && (
+          <div
+            className="text-center py-16 mono text-[11px] tracking-[0.14em]"
+            style={{ color: 'var(--ink-50)' }}
+          >
+            NENHUMA ORGANIZAÇÃO CADASTRADA
+          </div>
+        )}
+
+        {orgs && orgs.length > 0 && (
+          <div className="overflow-x-auto -mx-2">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                  {['Organização', 'Tipo', 'Equipe', 'Eventos', 'Status', ''].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="mono text-[10px] tracking-[0.1em] py-3 px-2 font-medium uppercase"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        {h}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {orgs.map((org: OrgRow) => {
+                  const status = STATUS_STYLES[org.status] ?? STATUS_STYLES.active
+                  return (
+                    <tr
+                      key={org.id}
+                      style={{ borderBottom: '1px solid var(--line)' }}
+                    >
+                      <td className="py-4 px-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="rounded-lg overflow-hidden grid place-items-center shrink-0"
+                            style={{
+                              width: 36,
+                              height: 36,
+                              background: 'var(--azul-50)',
+                              color: 'var(--azul)',
+                            }}
+                          >
+                            {org.logo_url ? (
+                              <Image
+                                src={org.logo_url}
+                                alt={org.name}
+                                width={36}
+                                height={36}
+                                className="object-cover w-full h-full"
+                              />
+                            ) : (
+                              <Building2 size={16} />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div
+                              className="font-semibold truncate"
+                              style={{ color: 'var(--ink)' }}
+                              title={org.name}
+                            >
+                              {org.name}
+                            </div>
+                            <div
+                              className="mono text-[10px] tracking-[0.06em] truncate"
+                              style={{ color: 'var(--ink-50)' }}
+                            >
+                              /{org.slug}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td
+                        className="py-4 px-2 text-xs"
+                        style={{ color: 'var(--ink-70)' }}
+                      >
+                        {ORG_TYPE_LABELS[org.type] ?? org.type}
+                      </td>
+                      <td
+                        className="py-4 px-2 mono whitespace-nowrap"
+                        style={{ color: 'var(--ink)' }}
+                      >
+                        {membersByOrg[org.id] ?? 0}
+                      </td>
+                      <td
+                        className="py-4 px-2 mono whitespace-nowrap"
+                        style={{ color: 'var(--ink)' }}
+                      >
+                        {eventsByOrg[org.id] ?? 0}
+                      </td>
+                      <td className="py-4 px-2">
+                        <span
+                          className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                          style={{ background: status.bg, color: status.color }}
+                        >
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="py-4 px-2 text-right">
+                        <Link
+                          href={`/admin/parceiros/${org.id}`}
+                          className="mono text-[11px] tracking-[0.1em] inline-flex items-center gap-1 hover:opacity-70 transition-opacity"
+                          style={{ color: 'var(--azul)' }}
+                        >
+                          ABRIR <ArrowUpRight size={12} />
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MiniStat({
+  label,
+  value,
+  accent,
+  accentBg,
+}: {
+  label: string
+  value: number | string
+  accent: string
+  accentBg: string
+}) {
+  return (
+    <div
+      className="rounded-2xl bg-white p-4 flex items-center gap-3"
+      style={{ border: '1px solid var(--line)' }}
+    >
+      <div
+        className="rounded-lg p-2.5 shrink-0"
+        style={{ background: accentBg, color: accent }}
+      >
+        <Building2 size={16} />
+      </div>
+      <div className="min-w-0">
+        <div
+          className="mono text-[10px] tracking-[0.14em] truncate"
+          style={{ color: 'var(--ink-50)' }}
+        >
+          {label}
+        </div>
+        <div
+          className="display"
+          style={{ fontSize: 24, letterSpacing: '-0.02em', color: 'var(--ink)' }}
+        >
+          {value}
+        </div>
       </div>
     </div>
   )

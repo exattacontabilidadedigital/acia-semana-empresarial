@@ -3,6 +3,30 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import HomeHero from '@/components/site/home/HomeHero'
 import InscricaoQuickCard from '@/components/site/home/InscricaoQuickCard'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { formatCurrency } from '@/lib/utils'
+import type { Event } from '@/types/database'
+
+const CATEGORY_COLOR: Record<string, string> = {
+  feira: 'var(--laranja)',
+  palestra: 'var(--azul)',
+  oficina: 'var(--verde)',
+  rodada: 'var(--laranja)',
+  curso: 'var(--verde)',
+  talk: 'var(--ciano)',
+}
+
+function categoryColor(cat: string) {
+  return CATEGORY_COLOR[cat?.toLowerCase()] ?? 'var(--ink)'
+}
+
+function formatShortDate(date: string, time?: string) {
+  const [, m, d] = date.split('-')
+  const base = `${d}.${m}`
+  if (!time) return base
+  const hour = time.slice(0, 5).replace(':00', 'h').replace(':', 'h')
+  return `${base} · ${hour}`
+}
 
 const REALIZADORES = [
   {
@@ -83,21 +107,6 @@ const NUMEROS = [
   { n: 'R$ 5,29 mi', l: 'Em negócios', c: 'var(--verde)' },
 ]
 
-const INSCRICOES = [
-  { t: 'Feira Multissetorial', d: '20 — 22.08', p: 'Gratuito', c: 'var(--laranja)' },
-  { t: 'Palestra Magna', d: '19.08 · 19h', p: 'R$ 80', c: 'var(--azul)' },
-  { t: 'Rodada de Negócios', d: '18 — 20.08', p: 'R$ 120', c: 'var(--laranja)' },
-  { t: 'Talk Mulheres', d: '18.08 · 18h', p: 'R$ 50', c: 'var(--ciano)' },
-  {
-    t: 'Oficinas e consultorias',
-    d: '17 — 22.08',
-    p: 'Gratuito',
-    c: 'var(--verde)',
-    slots: { open: 5, closed: 2 },
-  },
-  { t: 'Rodada de Crédito', d: '17 — 22.08', p: 'Gratuito', c: 'var(--verde)' },
-]
-
 const PATROCINADORES = [
   { n: 'Diamante', c: 'var(--laranja)', img: '/site/patrocinadores/diamante.png', h: 56, span: 6 },
   { n: 'Master', c: 'var(--laranja)', img: '/site/patrocinadores/master.png', h: 56, span: 6 },
@@ -123,7 +132,52 @@ const MARQUEE_ITEMS = [
   { t: 'Plantão de Consultorias', c: 'var(--verde)' },
 ]
 
-export default function HomePage() {
+export const dynamic = 'force-dynamic'
+
+async function getUpcomingEvents(): Promise<Event[]> {
+  const supabase = createServerSupabaseClient()
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('status', 'active')
+    .order('event_date', { ascending: true })
+    .limit(6)
+  if (error) console.error('[home] getUpcomingEvents error:', error.message)
+  console.log('[home] events fetched:', data?.length ?? 0)
+  return data ?? []
+}
+
+async function getEventCounts() {
+  const supabase = createServerSupabaseClient()
+  const { count: total, error: e1 } = await supabase
+    .from('events')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'active')
+  if (e1) console.error('[home] count total error:', e1.message)
+  const { count: free, error: e2 } = await supabase
+    .from('events')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'active')
+    .eq('price', 0)
+  if (e2) console.error('[home] count free error:', e2.message)
+  const { data: minPaid, error: e3 } = await supabase
+    .from('events')
+    .select('price')
+    .eq('status', 'active')
+    .gt('price', 0)
+    .order('price', { ascending: true })
+    .limit(1)
+  if (e3) console.error('[home] min price error:', e3.message)
+  return {
+    total: total ?? 0,
+    free: free ?? 0,
+    minPrice: minPaid?.[0]?.price ?? 0,
+  }
+}
+
+export default async function HomePage() {
+  const [events, counts] = await Promise.all([getUpcomingEvents(), getEventCounts()])
+
   return (
     <div className="page-enter">
       <HomeHero />
@@ -321,8 +375,8 @@ export default function HomePage() {
           <div className="mt-12">
             <Link
               href="/sobre"
-              className="btn btn-ghost btn-lg"
-              style={{ borderColor: '#3a3c6a', color: 'white' }}
+              className="btn btn-lg"
+              style={{ background: 'var(--verde)', color: 'var(--ink)', border: '1px solid var(--verde)' }}
             >
               Ver relatório completo <ArrowRight size={16} />
             </Link>
@@ -377,7 +431,7 @@ export default function HomePage() {
                     className="display"
                     style={{ fontSize: 36, letterSpacing: '-.02em' }}
                   >
-                    7
+                    {counts.total}
                   </div>
                   <div className="mono text-[11px] text-ink-50 tracking-[0.1em]">ATIVIDADES</div>
                 </div>
@@ -386,38 +440,53 @@ export default function HomePage() {
                     className="display"
                     style={{ fontSize: 36, letterSpacing: '-.02em' }}
                   >
-                    4
+                    {counts.free}
                   </div>
                   <div className="mono text-[11px] text-ink-50 tracking-[0.1em]">GRATUITAS</div>
                 </div>
-                <div>
-                  <div
-                    className="display"
-                    style={{
-                      fontSize: 36,
-                      letterSpacing: '-.02em',
-                      color: 'var(--laranja)',
-                    }}
-                  >
-                    R$ 50+
+                {counts.minPrice > 0 && (
+                  <div>
+                    <div
+                      className="display"
+                      style={{
+                        fontSize: 36,
+                        letterSpacing: '-.02em',
+                        color: 'var(--laranja)',
+                      }}
+                    >
+                      {formatCurrency(counts.minPrice)}
+                    </div>
+                    <div className="mono text-[11px] text-ink-50 tracking-[0.1em]">A PARTIR DE</div>
                   </div>
-                  <div className="mono text-[11px] text-ink-50 tracking-[0.1em]">A PARTIR DE</div>
-                </div>
+                )}
               </div>
             </div>
             <div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {INSCRICOES.map((x, i) => (
-                  <InscricaoQuickCard
-                    key={i}
-                    title={x.t}
-                    date={x.d}
-                    price={x.p}
-                    color={x.c}
-                    slots={x.slots}
-                  />
-                ))}
-              </div>
+              {events.length === 0 ? (
+                <div
+                  className="bg-white border border-line rounded-2xl text-center"
+                  style={{ padding: '48px 32px' }}
+                >
+                  <div className="mono text-[11px] text-ink-50 tracking-[0.1em] mb-3">
+                    PROGRAMAÇÃO EM BREVE
+                  </div>
+                  <p className="text-sm" style={{ color: 'var(--ink-70)' }}>
+                    Os eventos da 6ª edição serão divulgados aqui em breve.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {events.map((ev) => (
+                    <InscricaoQuickCard
+                      key={ev.id}
+                      title={ev.title}
+                      date={formatShortDate(ev.event_date, ev.start_time)}
+                      price={ev.price > 0 ? formatCurrency(ev.price) : 'Gratuito'}
+                      color={categoryColor(ev.category)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -449,6 +518,49 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-12 gap-2.5">
+            {/* Card destacado: Realizadores */}
+            <div
+              className="bg-white border border-line rounded-[10px]"
+              style={{
+                gridColumn: 'span 12',
+                padding: '20px 24px',
+                borderLeft: '3px solid var(--azul)',
+              }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-2 h-2 rounded-full block" style={{ background: 'var(--azul)' }} />
+                <div className="mono text-[10px] text-ink-50 tracking-[0.12em]">
+                  REALIZAÇÃO
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 items-center">
+                {REALIZADORES.map((r) => (
+                  <div
+                    key={r.n}
+                    className="flex flex-col items-center gap-2 text-center"
+                  >
+                    <div
+                      className="flex items-center justify-center"
+                      style={{ minHeight: 72, width: '100%' }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={r.logo}
+                        alt={`Logo ${r.n}`}
+                        style={{ maxHeight: 72, maxWidth: '100%', objectFit: 'contain' }}
+                      />
+                    </div>
+                    <div
+                      className="mono text-[10px] tracking-[0.14em]"
+                      style={{ color: 'var(--ink-70)' }}
+                    >
+                      {r.n.toUpperCase()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {PATROCINADORES.map((t) => (
               <div
                 key={t.n}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import ModalPortal from '@/components/ui/ModalPortal'
 import {
   CheckCircle,
   RefreshCw,
@@ -209,6 +210,7 @@ export default function InscriptionActions({ inscription }: InscriptionActionsPr
 
       {/* Modal de detalhes */}
       {detailsOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDetailsOpen(false)}>
           <div className="mx-4 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
@@ -380,6 +382,7 @@ export default function InscriptionActions({ inscription }: InscriptionActionsPr
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   )

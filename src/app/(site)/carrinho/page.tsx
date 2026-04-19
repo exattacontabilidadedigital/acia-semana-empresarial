@@ -118,6 +118,9 @@ export default function CarrinhoPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [cpfLoaded, setCpfLoaded] = useState(false)
   const [cpfLoading, setCpfLoading] = useState(false)
+  const [cnpj, setCnpj] = useState('')
+  const [cnpjRequired, setCnpjRequired] = useState(false)
+  const [couponErrors, setCouponErrors] = useState<Record<number, string>>({})
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -203,21 +206,55 @@ export default function CarrinhoPage() {
   }, [formData.cep])
 
   const validateCoupon = async (eventId: number, couponCode: string) => {
+    setCouponErrors((prev) => {
+      const next = { ...prev }
+      delete next[eventId]
+      return next
+    })
     if (!couponCode.trim()) return
     try {
+      const cnpjDigits = cnpj.replace(/\D/g, '')
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponCode, event_id: eventId }),
+        body: JSON.stringify({
+          code: couponCode,
+          event_id: eventId,
+          cnpj: cnpjDigits || null,
+        }),
       })
       const data = await res.json()
-      if (!res.ok) return
+
+      if (!data.valid) {
+        if (data.requires_cnpj) {
+          setCnpjRequired(true)
+        }
+        setCouponErrors((prev) => ({
+          ...prev,
+          [eventId]: data.message ?? 'Cupom inválido.',
+        }))
+        // Limpa cupom anterior se houver
+        updateCartItem(eventId, { couponCode: null, couponDiscount: 0 })
+        return
+      }
+
+      // Calcula desconto unitário pra refletir no resumo do carrinho
+      const item = cart.find((c) => c.eventId === eventId)
+      const unit = item?.isHalfPrice ? (item.price ?? 0) / 2 : item?.price ?? 0
+      const discountPerUnit =
+        data.discount_type === 'percentage'
+          ? unit * (Number(data.discount_value) / 100)
+          : Number(data.discount_value)
+
       updateCartItem(eventId, {
         couponCode,
-        couponDiscount: data.discount_amount,
+        couponDiscount: discountPerUnit,
       })
     } catch {
-      /* silent */
+      setCouponErrors((prev) => ({
+        ...prev,
+        [eventId]: 'Erro ao validar cupom.',
+      }))
     }
   }
 
@@ -237,6 +274,7 @@ export default function CarrinhoPage() {
 
     setIsSubmitting(true)
     try {
+      const cnpjDigits = cnpj.replace(/\D/g, '')
       const payload = {
         items: cart.map((item) => ({
           event_id: item.eventId,
@@ -248,6 +286,7 @@ export default function CarrinhoPage() {
         email: formData.email,
         cpf: formData.cpf.replace(/\D/g, ''),
         telefone: formData.telefone.replace(/\D/g, ''),
+        cnpj: cnpjDigits || null,
         nome_empresa: formData.nome_empresa || null,
         cargo: formData.cargo || null,
         cep: formData.cep.replace(/\D/g, ''),
@@ -315,7 +354,7 @@ export default function CarrinhoPage() {
             >
               Escolha eventos e ingressos pra começar sua agenda da semana.
             </p>
-            <Link href="/" className="btn btn-primary btn-lg">
+            <Link href="/inscricoes" className="btn btn-primary btn-lg">
               Ver eventos <ArrowRight size={16} />
             </Link>
           </div>
@@ -621,20 +660,30 @@ export default function CarrinhoPage() {
                         )}
 
                         {item.price > 0 && (
-                          <div className="flex items-center gap-1">
-                            {item.couponCode ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1">
+                              {item.couponCode ? (
+                                <span
+                                  className="text-xs font-medium"
+                                  style={{ color: 'var(--verde-600)' }}
+                                >
+                                  Cupom: {item.couponCode} (-
+                                  {formatCurrency(item.couponDiscount)}/un)
+                                </span>
+                              ) : (
+                                <CouponInput
+                                  eventId={item.eventId}
+                                  onApply={validateCoupon}
+                                />
+                              )}
+                            </div>
+                            {couponErrors[item.eventId] && (
                               <span
-                                className="text-xs font-medium"
-                                style={{ color: 'var(--verde-600)' }}
+                                className="text-[11px] font-medium"
+                                style={{ color: '#dc2626' }}
                               >
-                                Cupom: {item.couponCode} (-
-                                {formatCurrency(item.couponDiscount)}/un)
+                                {couponErrors[item.eventId]}
                               </span>
-                            ) : (
-                              <CouponInput
-                                eventId={item.eventId}
-                                onApply={validateCoupon}
-                              />
                             )}
                           </div>
                         )}
@@ -812,6 +861,41 @@ export default function CarrinhoPage() {
                           style={inputStyle}
                         />
                       </Field>
+
+                      {cnpjRequired && (
+                        <div
+                          className="rounded-xl p-4 mt-2"
+                          style={{
+                            background: 'rgba(248,130,30,0.06)',
+                            border: '1px solid rgba(248,130,30,0.3)',
+                          }}
+                        >
+                          <p
+                            className="text-xs mb-3"
+                            style={{ color: '#b85d00' }}
+                          >
+                            Você aplicou um cupom exclusivo para empresas
+                            associadas. Informe o CNPJ da empresa para validar.
+                          </p>
+                          <Field label="CNPJ da empresa associada" required>
+                            <input
+                              type="text"
+                              value={cnpj}
+                              onChange={(e) => setCnpj(e.target.value)}
+                              placeholder="00.000.000/0000-00"
+                              style={inputStyle}
+                              autoFocus
+                            />
+                          </Field>
+                          <p
+                            className="mt-2 text-[11px]"
+                            style={{ color: 'var(--ink-50)' }}
+                          >
+                            Após preencher, clique em <strong>OK</strong> no
+                            cupom novamente.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mono text-[11px] text-ink-50 tracking-[0.1em] mb-4 mt-9">

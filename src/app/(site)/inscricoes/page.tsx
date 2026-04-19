@@ -11,14 +11,19 @@ type EventWithCounts = Event & {
   halfPriceUsed: number
 }
 
+export const dynamic = 'force-dynamic'
+
 async function getEvents(): Promise<EventWithCounts[]> {
   const supabase = createServerSupabaseClient()
 
-  const { data: events } = await supabase
+  const { data: events, error } = await supabase
     .from('events')
     .select('*')
     .eq('status', 'active')
     .order('event_date', { ascending: true })
+
+  if (error) console.error('[inscricoes] events error:', error.message)
+  console.log('[inscricoes] events fetched:', events?.length ?? 0)
 
   if (!events || events.length === 0) return []
 
@@ -58,7 +63,7 @@ export default async function InscricoesPage() {
           </div>
           <h1
             className="display mb-6"
-            style={{ fontSize: 'clamp(48px, 8vw, 120px)', maxWidth: 1100 }}
+            style={{ fontSize: 80, maxWidth: 1100 }}
           >
             Garanta sua <span style={{ color: 'var(--laranja)' }}>vaga</span>.
           </h1>

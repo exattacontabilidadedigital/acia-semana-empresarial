@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import ModalPortal from '@/components/ui/ModalPortal'
 import {
   Building2, CheckCircle, XCircle, Clock, Eye, X, Loader2, Plus,
-  Search, Phone, Mail, MapPin, Tag, Pencil, Check, Ban,
+  Search, Pencil, Check, Ban,
 } from 'lucide-react'
 
 interface Exhibitor {
@@ -24,11 +25,19 @@ interface Exhibitor {
   created_at: string
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
-  pending: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-  approved: { label: 'Aprovado', color: 'bg-green-100 text-green-800', icon: CheckCircle },
-  rejected: { label: 'Rejeitado', color: 'bg-red-100 text-red-800', icon: XCircle },
-  cancelled: { label: 'Cancelado', color: 'bg-gray-100 text-gray-800', icon: Ban },
+interface StandOption {
+  number: string
+  type: string
+  size: string
+  price: number
+  status: string
+}
+
+const statusStyles: Record<string, { bg: string; color: string; label: string }> = {
+  pending: { bg: 'rgba(248,130,30,0.15)', color: '#b85d00', label: 'PENDENTE' },
+  approved: { bg: 'rgba(166,206,58,0.18)', color: '#3d5a0a', label: 'APROVADO' },
+  rejected: { bg: '#fee2e2', color: '#991b1b', label: 'REJEITADO' },
+  cancelled: { bg: 'var(--paper-2)', color: 'var(--ink-50)', label: 'CANCELADO' },
 }
 
 const standLabels: Record<string, string> = {
@@ -50,6 +59,7 @@ function formatDate(d: string) {
 
 export default function AdminExpositoresPage() {
   const [exhibitors, setExhibitors] = useState<Exhibitor[]>([])
+  const [allStands, setAllStands] = useState<StandOption[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState('')
   const [filterSearch, setFilterSearch] = useState('')
@@ -96,6 +106,18 @@ export default function AdminExpositoresPage() {
   }
 
   useEffect(() => { fetchData() }, [filterStatus, filterSearch])
+
+  useEffect(() => {
+    fetch('/api/stands')
+      .then((r) => r.json())
+      .then((d) => setAllStands(d.stands || []))
+      .catch(() => setAllStands([]))
+  }, [modal])
+
+  function standOptions(currentNumber: string | null | undefined) {
+    const opts = allStands.filter((s) => s.status === 'available' || s.number === currentNumber)
+    return opts.sort((a, b) => a.number.localeCompare(b.number, 'pt', { numeric: true }))
+  }
 
   function openDetails(ex: Exhibitor) {
     setSelected(ex)
@@ -231,139 +253,205 @@ export default function AdminExpositoresPage() {
     rejected: exhibitors.filter((e) => e.status === 'rejected').length,
   }
 
+  const inputStyle = { border: '1px solid var(--line)', color: 'var(--ink)' } as const
+  const inputClass = 'admin-input w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors'
+
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 font-montserrat">Expositores</h1>
+    <div className="page-enter" style={{ color: 'var(--ink)' }}>
+
+      {/* Header */}
+      <div className="mb-10">
+        <div className="eyebrow mb-4">
+          <span className="dot" />
+          PAINEL ADMINISTRATIVO · FEIRA
+        </div>
+        <h1 className="display" style={{ fontSize: 'clamp(40px, 5vw, 56px)' }}>
+          Expositores
+        </h1>
+        <p
+          className="mt-3"
+          style={{ color: 'var(--ink-70)', fontSize: 15, maxWidth: 560 }}
+        >
+          Aprove, gerencie e acompanhe as empresas inscritas para a feira.
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StatTile label="PENDENTES" value={counts.pending} icon={<Clock size={18} />} accent="var(--laranja)" accentBg="rgba(248,130,30,0.15)" />
+        <StatTile label="APROVADOS" value={counts.approved} icon={<CheckCircle size={18} />} accent="#3d5a0a" accentBg="rgba(166,206,58,0.18)" />
+        <StatTile label="REJEITADOS" value={counts.rejected} icon={<XCircle size={18} />} accent="#991b1b" accentBg="#fee2e2" />
+      </div>
+
+      {/* Action bar */}
+      <div className="mb-6 flex items-center justify-end">
         <button
           onClick={() => { resetCreateForm(); setFeedback(''); setModal('create' as any) }}
-          className="inline-flex items-center gap-2 rounded-lg bg-purple px-4 py-2 text-sm font-medium text-white hover:bg-purple-dark"
+          className="btn btn-orange"
         >
           <Plus size={18} />
           Novo Expositor
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-lg bg-white p-4 shadow-sm border-l-4 border-yellow-400 flex items-center gap-3">
-          <Clock className="text-yellow-500" size={24} />
-          <div>
-            <p className="text-2xl font-bold">{counts.pending}</p>
-            <p className="text-xs text-gray-500">Pendentes</p>
+      {/* Filters card */}
+      <div className="mb-6 rounded-[20px] bg-white p-5" style={{ border: '1px solid var(--line)' }}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[240px]">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink-50)' }} />
+            <input
+              type="text"
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              placeholder="Buscar empresa, responsável, email..."
+              className="admin-input w-full pl-9 pr-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+              style={inputStyle}
+            />
           </div>
-        </div>
-        <div className="rounded-lg bg-white p-4 shadow-sm border-l-4 border-green-500 flex items-center gap-3">
-          <CheckCircle className="text-green-500" size={24} />
-          <div>
-            <p className="text-2xl font-bold">{counts.approved}</p>
-            <p className="text-xs text-gray-500">Aprovados</p>
-          </div>
-        </div>
-        <div className="rounded-lg bg-white p-4 shadow-sm border-l-4 border-red-400 flex items-center gap-3">
-          <XCircle className="text-red-400" size={24} />
-          <div>
-            <p className="text-2xl font-bold">{counts.rejected}</p>
-            <p className="text-xs text-gray-500">Rejeitados</p>
-          </div>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="admin-input px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+            style={inputStyle}
+          >
+            <option value="">Todos os status</option>
+            <option value="pending">Pendentes</option>
+            <option value="approved">Aprovados</option>
+            <option value="rejected">Rejeitados</option>
+          </select>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={filterSearch}
-            onChange={(e) => setFilterSearch(e.target.value)}
-            placeholder="Buscar empresa, responsável, email..."
-            className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm focus:border-purple focus:outline-none"
-          />
-        </div>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-        >
-          <option value="">Todos os status</option>
-          <option value="pending">Pendentes</option>
-          <option value="approved">Aprovados</option>
-          <option value="rejected">Rejeitados</option>
-        </select>
-      </div>
-
-      {/* Table */}
+      {/* Table card */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-purple" size={32} />
+          <Loader2 className="animate-spin" size={32} style={{ color: 'var(--azul)' }} />
         </div>
       ) : (
-        <div className="rounded-lg bg-white shadow-sm">
-          <div className="overflow-x-auto">
+        <div className="rounded-[20px] bg-white p-7" style={{ border: '1px solid var(--line)' }}>
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <div className="min-w-0">
+              <div className="mono text-[10px] tracking-[0.14em]" style={{ color: 'var(--ink-50)' }}>
+                EMPRESAS CADASTRADAS
+              </div>
+              <h2 className="display mt-1" style={{ fontSize: 22, letterSpacing: '-0.02em' }}>
+                Lista de expositores
+              </h2>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto -mx-2">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b text-gray-500">
-                  <th className="px-6 py-3 font-medium">Empresa</th>
-                  <th className="px-6 py-3 font-medium">Responsável</th>
-                  <th className="px-6 py-3 font-medium">Segmento</th>
-                  <th className="px-6 py-3 font-medium">Estande</th>
-                  <th className="px-6 py-3 font-medium">Status</th>
-                  <th className="px-6 py-3 font-medium">Data</th>
-                  <th className="px-6 py-3 font-medium">Ações</th>
+                <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                  {['Empresa', 'Responsável', 'Segmento', 'Estande', 'Status', 'Data', 'Ações'].map((h) => (
+                    <th
+                      key={h}
+                      className="mono text-[10px] tracking-[0.1em] py-3 px-2 font-medium uppercase"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody>
                 {exhibitors.map((ex) => {
-                  const st = statusConfig[ex.status] || statusConfig.pending
+                  const st = statusStyles[ex.status] ?? statusStyles.pending
                   return (
-                    <tr key={ex.id} className="text-gray-700 hover:bg-gray-50">
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-3">
+                    <tr key={ex.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                      <td className="py-4 px-2">
+                        <div className="flex items-center gap-3 min-w-0">
                           {ex.logo_url ? (
                             /* eslint-disable-next-line @next/next/no-img-element */
-                            <img src={ex.logo_url} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                            <img src={ex.logo_url} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" style={{ border: '1px solid var(--line)' }} />
                           ) : (
-                            <div className="w-8 h-8 rounded bg-purple/10 flex items-center justify-center flex-shrink-0">
-                              <Building2 size={14} className="text-purple" />
+                            <div
+                              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                              style={{ background: 'var(--azul-50)', color: 'var(--azul)' }}
+                            >
+                              <Building2 size={14} />
                             </div>
                           )}
-                          <div>
-                            <p className="font-medium">{ex.company_name}</p>
-                            <p className="text-xs text-gray-400">{ex.email}</p>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate max-w-[200px]" style={{ color: 'var(--ink)' }} title={ex.company_name}>
+                              {ex.company_name}
+                            </p>
+                            <p className="mono text-[10px] tracking-[0.04em] mt-0.5 truncate max-w-[200px]" style={{ color: 'var(--ink-50)' }} title={ex.email}>
+                              {ex.email}
+                            </p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-3">{ex.responsible_name}</td>
-                      <td className="px-6 py-3">
-                        <span className="inline-block rounded-full bg-purple/10 px-2 py-0.5 text-xs font-medium text-purple">
+                      <td
+                        className="py-4 px-2 max-w-[160px] truncate"
+                        style={{ color: 'var(--ink-70)' }}
+                        title={ex.responsible_name}
+                      >
+                        {ex.responsible_name}
+                      </td>
+                      <td className="py-4 px-2">
+                        <span
+                          className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                          style={{ background: 'var(--azul-50)', color: 'var(--azul)' }}
+                        >
                           {ex.segment}
                         </span>
                       </td>
-                      <td className="px-6 py-3 text-xs">
-                        {ex.stand_number && <span className="font-semibold text-purple">{ex.stand_number} — </span>}
+                      <td className="py-4 px-2 mono text-[11px] whitespace-nowrap" style={{ color: 'var(--ink-70)' }}>
+                        {ex.stand_number && (
+                          <span className="font-semibold" style={{ color: 'var(--azul)' }}>{ex.stand_number} — </span>
+                        )}
                         {standLabels[ex.stand_size] || ex.stand_size}
                       </td>
-                      <td className="px-6 py-3">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>
+                      <td className="py-4 px-2">
+                        <span
+                          className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                          style={{ background: st.bg, color: st.color }}
+                        >
                           {st.label}
                         </span>
                       </td>
-                      <td className="px-6 py-3 text-xs">{formatDate(ex.created_at)}</td>
-                      <td className="px-6 py-3">
+                      <td
+                        className="py-4 px-2 mono text-[11px] whitespace-nowrap"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        {formatDate(ex.created_at)}
+                      </td>
+                      <td className="py-4 px-2">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openDetails(ex)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-purple" title="Detalhes">
+                          <button
+                            onClick={() => openDetails(ex)}
+                            className="rounded p-1.5 transition-colors hover:bg-[var(--paper-2)]"
+                            style={{ color: 'var(--ink-50)' }}
+                            title="Detalhes"
+                          >
                             <Eye size={14} />
                           </button>
-                          <button onClick={() => openEdit(ex)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-purple" title="Editar">
+                          <button
+                            onClick={() => openEdit(ex)}
+                            className="rounded p-1.5 transition-colors hover:bg-[var(--paper-2)]"
+                            style={{ color: 'var(--ink-50)' }}
+                            title="Editar"
+                          >
                             <Pencil size={14} />
                           </button>
                           {ex.status === 'pending' && (
                             <>
-                              <button onClick={() => openApprove(ex)} className="rounded p-1 text-gray-400 hover:bg-green-100 hover:text-green-600" title="Aprovar">
+                              <button
+                                onClick={() => openApprove(ex)}
+                                className="rounded p-1.5 transition-colors"
+                                style={{ color: '#3d5a0a' }}
+                                title="Aprovar"
+                              >
                                 <Check size={14} />
                               </button>
-                              <button onClick={() => { setSelected(ex); handleAction('reject') }} className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600" title="Rejeitar">
+                              <button
+                                onClick={() => { setSelected(ex); handleAction('reject') }}
+                                className="rounded p-1.5 transition-colors"
+                                style={{ color: '#991b1b' }}
+                                title="Rejeitar"
+                              >
                                 <Ban size={14} />
                               </button>
                             </>
@@ -375,8 +463,12 @@ export default function AdminExpositoresPage() {
                 })}
                 {exhibitors.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-400">
-                      Nenhum expositor encontrado.
+                    <td
+                      colSpan={7}
+                      className="py-16 text-center mono text-[11px] tracking-[0.14em]"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
+                      NENHUM EXPOSITOR ENCONTRADO
                     </td>
                   </tr>
                 )}
@@ -388,112 +480,245 @@ export default function AdminExpositoresPage() {
 
       {/* ===== MODAL DETALHES ===== */}
       {modal === 'details' && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModal(null)}>
-          <div className="mx-4 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="sticky top-0 bg-gradient-to-r from-purple to-purple-dark p-5 rounded-t-lg flex items-center justify-between">
-              <div>
-                <p className="text-xs text-white/70 uppercase tracking-wide">Expositor</p>
-                <p className="text-white font-bold">{selected.company_name}</p>
+        <ModalPortal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModal(null)}>
+          <div
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[20px] bg-white p-7"
+            style={{ border: '1px solid var(--line)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <div className="min-w-0">
+                <div className="mono text-[10px] tracking-[0.14em]" style={{ color: 'var(--ink-50)' }}>
+                  EXPOSITOR
+                </div>
+                <h2 className="display mt-1 truncate" style={{ fontSize: 22, letterSpacing: '-0.02em' }} title={selected.company_name}>
+                  {selected.company_name}
+                </h2>
               </div>
-              <button onClick={() => setModal(null)} className="text-white/70 hover:text-white"><X size={20} /></button>
+              <button
+                onClick={() => setModal(null)}
+                className="rounded p-1.5 transition-colors hover:bg-[var(--paper-2)] shrink-0"
+                style={{ color: 'var(--ink-50)' }}
+              >
+                <X size={20} />
+              </button>
             </div>
-            <div className="p-5 space-y-4">
+
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><p className="text-xs text-gray-400">CNPJ</p><p className="font-medium">{selected.cnpj || '—'}</p></div>
-                <div><p className="text-xs text-gray-400">Segmento</p><p className="font-medium">{selected.segment}</p></div>
-                <div><p className="text-xs text-gray-400">Responsável</p><p className="font-medium">{selected.responsible_name}</p>{selected.responsible_role && <p className="text-xs text-gray-500">{selected.responsible_role}</p>}</div>
-                <div><p className="text-xs text-gray-400">Contato</p><p className="font-medium">{selected.email}</p><p className="text-xs text-gray-500">{formatPhone(selected.phone)}</p></div>
-                <div><p className="text-xs text-gray-400">Estande</p><p className="font-medium">{selected.stand_number || '—'} — {standLabels[selected.stand_size] || selected.stand_size}</p></div>
-                <div><p className="text-xs text-gray-400">Status</p><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${(statusConfig[selected.status] || statusConfig.pending).color}`}>{(statusConfig[selected.status] || statusConfig.pending).label}</span></div>
+                <DetailField label="CNPJ" value={selected.cnpj || '—'} />
+                <DetailField label="SEGMENTO" value={selected.segment} />
+                <DetailField
+                  label="RESPONSÁVEL"
+                  value={selected.responsible_name}
+                  hint={selected.responsible_role || undefined}
+                />
+                <DetailField
+                  label="CONTATO"
+                  value={selected.email}
+                  hint={formatPhone(selected.phone)}
+                />
+                <DetailField
+                  label="ESTANDE"
+                  value={`${selected.stand_number || '—'} — ${standLabels[selected.stand_size] || selected.stand_size}`}
+                />
+                <div>
+                  <p className="mono text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>STATUS</p>
+                  <span
+                    className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                    style={{
+                      background: (statusStyles[selected.status] || statusStyles.pending).bg,
+                      color: (statusStyles[selected.status] || statusStyles.pending).color,
+                    }}
+                  >
+                    {(statusStyles[selected.status] || statusStyles.pending).label}
+                  </span>
+                </div>
               </div>
+
               {selected.description && (
-                <div><p className="text-xs text-gray-400 mb-1">Descrição</p><p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{selected.description}</p></div>
+                <div>
+                  <p className="mono text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>DESCRIÇÃO</p>
+                  <p className="text-sm rounded-xl p-4" style={{ background: 'var(--paper-2)', color: 'var(--ink-70)' }}>
+                    {selected.description}
+                  </p>
+                </div>
               )}
               {selected.admin_notes && (
-                <div><p className="text-xs text-gray-400 mb-1">Notas do Admin</p><p className="text-sm text-gray-700 bg-yellow-50 rounded-lg p-3">{selected.admin_notes}</p></div>
+                <div>
+                  <p className="mono text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>NOTAS DO ADMIN</p>
+                  <p className="text-sm rounded-xl p-4" style={{ background: 'rgba(248,130,30,0.08)', color: '#b85d00' }}>
+                    {selected.admin_notes}
+                  </p>
+                </div>
               )}
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ===== MODAL APROVAR ===== */}
       {modal === 'approve' && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModal(null)}>
-          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-1">Aprovar Expositor</h2>
-            <p className="text-sm text-gray-500 mb-4">{selected.company_name}</p>
+        <ModalPortal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModal(null)}>
+          <div
+            className="w-full max-w-md rounded-[20px] bg-white p-7"
+            style={{ border: '1px solid var(--line)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <div className="min-w-0">
+                <div className="mono text-[10px] tracking-[0.14em]" style={{ color: 'var(--ink-50)' }}>
+                  AÇÃO
+                </div>
+                <h2 className="display mt-1" style={{ fontSize: 22, letterSpacing: '-0.02em' }}>
+                  Aprovar Expositor
+                </h2>
+                <p className="mono text-[11px] mt-1 truncate" style={{ color: 'var(--ink-50)' }}>{selected.company_name}</p>
+              </div>
+              <button
+                onClick={() => setModal(null)}
+                className="rounded p-1.5 transition-colors hover:bg-[var(--paper-2)] shrink-0"
+                style={{ color: 'var(--ink-50)' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
 
-            {feedback && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{feedback}</div>}
+            {feedback && (
+              <div className="mb-4 rounded-xl p-3 text-sm" style={{ background: 'rgba(166,206,58,0.18)', color: '#3d5a0a' }}>
+                {feedback}
+              </div>
+            )}
 
-            <div className="space-y-3 mb-4">
+            <div className="space-y-4 mb-5">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Número do Estande</label>
-                <input type="text" value={standNumber} onChange={(e) => setStandNumber(e.target.value)} placeholder="Ex: A-12" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>NÚMERO DO ESTANDE</label>
+                <select
+                  value={standNumber}
+                  onChange={(e) => setStandNumber(e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                >
+                  <option value="">— Sem stand atribuído —</option>
+                  {standOptions(selected.stand_number).map((s) => (
+                    <option key={s.number} value={s.number}>
+                      {s.number} · {s.type} · {s.size} · R$ {s.price.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Observações</label>
-                <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows={3} placeholder="Notas internas..." className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>OBSERVAÇÕES</label>
+                <textarea
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Notas internas..."
+                  className={inputClass}
+                  style={inputStyle}
+                />
               </div>
             </div>
 
             <div className="flex justify-end gap-3">
-              <button onClick={() => setModal(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={() => handleAction('approve')} disabled={saving} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+              <button onClick={() => setModal(null)} className="btn btn-ghost">Cancelar</button>
+              <button
+                onClick={() => handleAction('approve')}
+                disabled={saving}
+                className="btn btn-orange disabled:opacity-50"
+              >
                 {saving ? 'Aprovando...' : 'Aprovar e Notificar'}
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ===== MODAL EDITAR ===== */}
       {modal === 'edit' && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModal(null)}>
-          <div className="mx-4 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Editar Expositor</h2>
-              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        <ModalPortal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModal(null)}>
+          <div
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[20px] bg-white p-7"
+            style={{ border: '1px solid var(--line)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <div className="min-w-0">
+                <div className="mono text-[10px] tracking-[0.14em]" style={{ color: 'var(--ink-50)' }}>
+                  EDITAR
+                </div>
+                <h2 className="display mt-1" style={{ fontSize: 22, letterSpacing: '-0.02em' }}>
+                  Editar Expositor
+                </h2>
+              </div>
+              <button
+                onClick={() => setModal(null)}
+                className="rounded p-1.5 transition-colors hover:bg-[var(--paper-2)] shrink-0"
+                style={{ color: 'var(--ink-50)' }}
+              >
+                <X size={20} />
+              </button>
             </div>
 
-            {feedback && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{feedback}</div>}
+            {feedback && (
+              <div className="mb-4 rounded-xl p-3 text-sm" style={{ background: 'rgba(166,206,58,0.18)', color: '#3d5a0a' }}>
+                {feedback}
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-4 mb-5">
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Empresa</label>
-                <input type="text" value={editForm.company_name || ''} onChange={(e) => setEditForm((p) => ({ ...p, company_name: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>EMPRESA</label>
+                <input type="text" value={editForm.company_name || ''} onChange={(e) => setEditForm((p) => ({ ...p, company_name: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">CNPJ</label>
-                <input type="text" value={editForm.cnpj || ''} onChange={(e) => setEditForm((p) => ({ ...p, cnpj: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>CNPJ</label>
+                <input type="text" value={editForm.cnpj || ''} onChange={(e) => setEditForm((p) => ({ ...p, cnpj: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Segmento</label>
-                <input type="text" value={editForm.segment || ''} onChange={(e) => setEditForm((p) => ({ ...p, segment: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>SEGMENTO</label>
+                <input type="text" value={editForm.segment || ''} onChange={(e) => setEditForm((p) => ({ ...p, segment: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Responsável</label>
-                <input type="text" value={editForm.responsible_name || ''} onChange={(e) => setEditForm((p) => ({ ...p, responsible_name: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>RESPONSÁVEL</label>
+                <input type="text" value={editForm.responsible_name || ''} onChange={(e) => setEditForm((p) => ({ ...p, responsible_name: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Cargo</label>
-                <input type="text" value={editForm.responsible_role || ''} onChange={(e) => setEditForm((p) => ({ ...p, responsible_role: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>CARGO</label>
+                <input type="text" value={editForm.responsible_role || ''} onChange={(e) => setEditForm((p) => ({ ...p, responsible_role: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Email</label>
-                <input type="email" value={editForm.email || ''} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>EMAIL</label>
+                <input type="email" value={editForm.email || ''} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Telefone</label>
-                <input type="text" value={editForm.phone || ''} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>TELEFONE</label>
+                <input type="text" value={editForm.phone || ''} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Estande</label>
-                <input type="text" value={editForm.stand_number || ''} onChange={(e) => setEditForm((p) => ({ ...p, stand_number: e.target.value }))} placeholder="Ex: A-12" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>ESTANDE</label>
+                <select
+                  value={editForm.stand_number || ''}
+                  onChange={(e) => setEditForm((p) => ({ ...p, stand_number: e.target.value }))}
+                  className={inputClass}
+                  style={inputStyle}
+                >
+                  <option value="">— Sem stand atribuído —</option>
+                  {standOptions(editForm.stand_number).map((s) => (
+                    <option key={s.number} value={s.number}>
+                      {s.number} · {s.type} · R$ {s.price.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Tamanho</label>
-                <select value={editForm.stand_size || ''} onChange={(e) => setEditForm((p) => ({ ...p, stand_size: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>TAMANHO</label>
+                <select value={editForm.stand_size || ''} onChange={(e) => setEditForm((p) => ({ ...p, stand_size: e.target.value }))} className={inputClass} style={inputStyle}>
                   <option value="pequeno">Pequeno (3x3m)</option>
                   <option value="medio">Médio (4x4m)</option>
                   <option value="grande">Grande (6x4m)</option>
@@ -501,60 +726,91 @@ export default function AdminExpositoresPage() {
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Logo da Empresa</label>
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>LOGO DA EMPRESA</label>
                 {editForm.logo_url && (
                   <div className="mb-2 flex items-center gap-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={editForm.logo_url} alt="Logo atual" className="w-10 h-10 rounded object-cover" />
-                    <span className="text-xs text-gray-400">Logo atual</span>
+                    <img src={editForm.logo_url} alt="Logo atual" className="w-10 h-10 rounded-lg object-cover" style={{ border: '1px solid var(--line)' }} />
+                    <span className="mono text-[10px] tracking-[0.06em]" style={{ color: 'var(--ink-50)' }}>LOGO ATUAL</span>
                   </div>
                 )}
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-purple/10 file:px-3 file:py-1 file:text-sm file:text-purple"
+                  className="admin-input w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors file:mr-3 file:rounded-full file:border-0 file:bg-[var(--azul-50)] file:px-3 file:py-1 file:text-xs file:text-[var(--azul)]"
+                  style={inputStyle}
                 />
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Notas Admin</label>
-                <textarea value={editForm.admin_notes || ''} onChange={(e) => setEditForm((p) => ({ ...p, admin_notes: e.target.value }))} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>NOTAS ADMIN</label>
+                <textarea value={editForm.admin_notes || ''} onChange={(e) => setEditForm((p) => ({ ...p, admin_notes: e.target.value }))} rows={2} className={inputClass} style={inputStyle} />
               </div>
             </div>
 
             <div className="flex justify-end gap-3">
-              <button onClick={() => setModal(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleEdit} disabled={saving} className="rounded-lg bg-purple px-4 py-2 text-sm font-medium text-white hover:bg-purple-dark disabled:opacity-50">
+              <button onClick={() => setModal(null)} className="btn btn-ghost">Cancelar</button>
+              <button onClick={handleEdit} disabled={saving} className="btn btn-orange disabled:opacity-50">
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ===== MODAL CRIAR ===== */}
       {modal === 'create' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModal(null)}>
-          <div className="mx-4 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Novo Expositor</h2>
-              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        <ModalPortal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModal(null)}>
+          <div
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[20px] bg-white p-7"
+            style={{ border: '1px solid var(--line)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <div className="min-w-0">
+                <div className="mono text-[10px] tracking-[0.14em]" style={{ color: 'var(--ink-50)' }}>
+                  NOVO CADASTRO
+                </div>
+                <h2 className="display mt-1" style={{ fontSize: 22, letterSpacing: '-0.02em' }}>
+                  Novo Expositor
+                </h2>
+              </div>
+              <button
+                onClick={() => setModal(null)}
+                className="rounded p-1.5 transition-colors hover:bg-[var(--paper-2)] shrink-0"
+                style={{ color: 'var(--ink-50)' }}
+              >
+                <X size={20} />
+              </button>
             </div>
 
-            {feedback && <div className={`mb-3 rounded-lg p-3 text-sm ${feedback.includes('sucesso') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{feedback}</div>}
+            {feedback && (
+              <div
+                className="mb-4 rounded-xl p-3 text-sm"
+                style={
+                  feedback.includes('sucesso')
+                    ? { background: 'rgba(166,206,58,0.18)', color: '#3d5a0a' }
+                    : { background: '#fee2e2', color: '#991b1b' }
+                }
+              >
+                {feedback}
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-4 mb-5">
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Empresa *</label>
-                <input type="text" value={createForm.company_name} onChange={(e) => setCreateForm((p) => ({ ...p, company_name: e.target.value }))} required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>EMPRESA *</label>
+                <input type="text" value={createForm.company_name} onChange={(e) => setCreateForm((p) => ({ ...p, company_name: e.target.value }))} required className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">CNPJ</label>
-                <input type="text" value={createForm.cnpj} onChange={(e) => setCreateForm((p) => ({ ...p, cnpj: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>CNPJ</label>
+                <input type="text" value={createForm.cnpj} onChange={(e) => setCreateForm((p) => ({ ...p, cnpj: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Segmento *</label>
-                <select value={createForm.segment} onChange={(e) => setCreateForm((p) => ({ ...p, segment: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>SEGMENTO *</label>
+                <select value={createForm.segment} onChange={(e) => setCreateForm((p) => ({ ...p, segment: e.target.value }))} className={inputClass} style={inputStyle}>
                   <option value="">Selecione...</option>
                   {['Alimentício', 'Vestuário', 'Tecnologia', 'Saúde', 'Serviços', 'Indústria', 'Agronegócio', 'Educação', 'Outro'].map((s) => (
                     <option key={s} value={s}>{s}</option>
@@ -562,28 +818,40 @@ export default function AdminExpositoresPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Responsável *</label>
-                <input type="text" value={createForm.responsible_name} onChange={(e) => setCreateForm((p) => ({ ...p, responsible_name: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>RESPONSÁVEL *</label>
+                <input type="text" value={createForm.responsible_name} onChange={(e) => setCreateForm((p) => ({ ...p, responsible_name: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Cargo</label>
-                <input type="text" value={createForm.responsible_role} onChange={(e) => setCreateForm((p) => ({ ...p, responsible_role: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>CARGO</label>
+                <input type="text" value={createForm.responsible_role} onChange={(e) => setCreateForm((p) => ({ ...p, responsible_role: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Email *</label>
-                <input type="email" value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>EMAIL *</label>
+                <input type="email" value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Telefone *</label>
-                <input type="text" value={createForm.phone} onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))} placeholder="(00) 00000-0000" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>TELEFONE *</label>
+                <input type="text" value={createForm.phone} onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))} placeholder="(00) 00000-0000" className={inputClass} style={inputStyle} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Nº Estande</label>
-                <input type="text" value={createForm.stand_number} onChange={(e) => setCreateForm((p) => ({ ...p, stand_number: e.target.value }))} placeholder="Ex: A-12" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>Nº ESTANDE</label>
+                <select
+                  value={createForm.stand_number}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, stand_number: e.target.value }))}
+                  className={inputClass}
+                  style={inputStyle}
+                >
+                  <option value="">— Sem stand atribuído —</option>
+                  {standOptions(createForm.stand_number).map((s) => (
+                    <option key={s.number} value={s.number}>
+                      {s.number} · {s.type} · R$ {s.price.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Tamanho</label>
-                <select value={createForm.stand_size} onChange={(e) => setCreateForm((p) => ({ ...p, stand_size: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>TAMANHO</label>
+                <select value={createForm.stand_size} onChange={(e) => setCreateForm((p) => ({ ...p, stand_size: e.target.value }))} className={inputClass} style={inputStyle}>
                   <option value="pequeno">Pequeno (3x3m)</option>
                   <option value="medio">Médio (4x4m)</option>
                   <option value="grande">Grande (6x4m)</option>
@@ -591,40 +859,111 @@ export default function AdminExpositoresPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Status inicial</label>
-                <select value={createForm.status} onChange={(e) => setCreateForm((p) => ({ ...p, status: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>STATUS INICIAL</label>
+                <select value={createForm.status} onChange={(e) => setCreateForm((p) => ({ ...p, status: e.target.value }))} className={inputClass} style={inputStyle}>
                   <option value="approved">Aprovado</option>
                   <option value="pending">Pendente</option>
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Logo da Empresa</label>
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>LOGO DA EMPRESA</label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-purple/10 file:px-3 file:py-1 file:text-sm file:text-purple"
+                  className="admin-input w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors file:mr-3 file:rounded-full file:border-0 file:bg-[var(--azul-50)] file:px-3 file:py-1 file:text-xs file:text-[var(--azul)]"
+                  style={inputStyle}
                 />
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Descrição</label>
-                <textarea value={createForm.description} onChange={(e) => setCreateForm((p) => ({ ...p, description: e.target.value }))} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>DESCRIÇÃO</label>
+                <textarea value={createForm.description} onChange={(e) => setCreateForm((p) => ({ ...p, description: e.target.value }))} rows={2} className={inputClass} style={inputStyle} />
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Notas Admin</label>
-                <textarea value={createForm.admin_notes} onChange={(e) => setCreateForm((p) => ({ ...p, admin_notes: e.target.value }))} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>NOTAS ADMIN</label>
+                <textarea value={createForm.admin_notes} onChange={(e) => setCreateForm((p) => ({ ...p, admin_notes: e.target.value }))} rows={2} className={inputClass} style={inputStyle} />
               </div>
             </div>
 
             <div className="flex justify-end gap-3">
-              <button onClick={() => setModal(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleCreate} disabled={saving || !createForm.company_name || !createForm.email || !createForm.responsible_name || !createForm.phone || !createForm.segment} className="rounded-lg bg-purple px-4 py-2 text-sm font-medium text-white hover:bg-purple-dark disabled:opacity-50">
+              <button onClick={() => setModal(null)} className="btn btn-ghost">Cancelar</button>
+              <button
+                onClick={handleCreate}
+                disabled={saving || !createForm.company_name || !createForm.email || !createForm.responsible_name || !createForm.phone || !createForm.segment}
+                className="btn btn-orange disabled:opacity-50"
+              >
                 {saving ? 'Criando...' : 'Criar Expositor'}
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
+    </div>
+  )
+}
+
+function StatTile({
+  label,
+  value,
+  icon,
+  accent,
+  accentBg,
+}: {
+  label: string
+  value: number | string
+  icon: React.ReactNode
+  accent: string
+  accentBg: string
+}) {
+  return (
+    <div
+      className="h-full rounded-[20px] bg-white p-5 overflow-hidden"
+      style={{ border: '1px solid var(--line)' }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div
+          className="mono text-[10px] tracking-[0.14em] truncate min-w-0 flex-1"
+          style={{ color: 'var(--ink-50)' }}
+        >
+          {label}
+        </div>
+        <div
+          className="rounded-lg p-2 shrink-0"
+          style={{ background: accentBg, color: accent }}
+        >
+          {icon}
+        </div>
+      </div>
+      <div
+        className="display truncate"
+        style={{
+          fontSize: 'clamp(28px, 3.4vw, 36px)',
+          letterSpacing: '-0.03em',
+          lineHeight: 1,
+          color: 'var(--ink)',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function DetailField({
+  label,
+  value,
+  hint,
+}: {
+  label: string
+  value: string
+  hint?: string
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="mono text-[10px] tracking-[0.1em] mb-1" style={{ color: 'var(--ink-50)' }}>{label}</p>
+      <p className="font-medium truncate" style={{ color: 'var(--ink)' }} title={value}>{value}</p>
+      {hint && <p className="mono text-[11px] mt-0.5 truncate" style={{ color: 'var(--ink-50)' }}>{hint}</p>}
     </div>
   )
 }

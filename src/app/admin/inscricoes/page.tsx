@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDateShort, formatCPF } from '@/lib/utils'
-import { Users, CheckCircle, Clock, DollarSign } from 'lucide-react'
+import { Users, CheckCircle, Clock, DollarSign, Download } from 'lucide-react'
 import Pagination from '@/components/ui/Pagination'
 import InscriptionActions from '@/components/admin/InscriptionActions'
 import ManualInscriptionModal from '@/components/admin/ManualInscriptionModal'
@@ -11,12 +11,12 @@ export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 20
 
-const statusColors: Record<string, string> = {
-  confirmed: 'bg-green-100 text-green-800',
-  free: 'bg-blue-100 text-blue-800',
-  pending: 'bg-yellow-100 text-yellow-800',
-  failed: 'bg-red-100 text-red-800',
-  refunded: 'bg-gray-100 text-gray-800',
+const statusStyles: Record<string, { bg: string; color: string; label: string }> = {
+  confirmed: { bg: 'rgba(166,206,58,0.18)', color: '#3d5a0a', label: 'CONFIRMADO' },
+  free: { bg: 'rgba(86,198,208,0.18)', color: '#0a4650', label: 'GRATUITO' },
+  pending: { bg: 'rgba(248,130,30,0.15)', color: '#b85d00', label: 'PENDENTE' },
+  failed: { bg: '#fee2e2', color: '#991b1b', label: 'FALHOU' },
+  refunded: { bg: 'var(--paper-2)', color: 'var(--ink-50)', label: 'REEMBOLSADO' },
 }
 
 export default async function AdminInscricoesPage({
@@ -94,15 +94,28 @@ export default async function AdminInscricoesPage({
   }
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900 font-montserrat">Inscrições</h1>
-        <div className="flex items-center gap-3">
-          <a
-            href={buildExportUrl()}
-            className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+    <div className="page-enter" style={{ color: 'var(--ink)' }}>
+
+      {/* Header */}
+      <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <div className="eyebrow mb-4">
+            <span className="dot" />
+            CADASTROS · INSCRIÇÕES
+          </div>
+          <h1 className="display" style={{ fontSize: 'clamp(40px, 5vw, 56px)' }}>
+            Inscrições
+          </h1>
+          <p
+            className="mt-3"
+            style={{ color: 'var(--ink-70)', fontSize: 15, maxWidth: 560 }}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Acompanhe pagamentos, gere inscrições manuais e exporte dados.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <a href={buildExportUrl()} className="btn btn-ghost btn-lg">
+            <Download size={16} />
             Exportar CSV
           </a>
           <ManualInscriptionModal
@@ -111,55 +124,71 @@ export default async function AdminInscricoesPage({
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg bg-white p-4 shadow-sm border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Confirmadas</p>
-              <p className="text-2xl font-bold text-gray-900">{totalConfirmed ?? 0}</p>
-            </div>
-            <div className="rounded-lg p-2.5 bg-green-50"><CheckCircle size={20} className="text-green-500" /></div>
-          </div>
-        </div>
-        <div className="rounded-lg bg-white p-4 shadow-sm border-l-4 border-yellow-400">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Pendentes</p>
-              <p className="text-2xl font-bold text-gray-900">{totalPending ?? 0}</p>
-            </div>
-            <div className="rounded-lg p-2.5 bg-yellow-50"><Clock size={20} className="text-yellow-500" /></div>
-          </div>
-        </div>
-        <div className="rounded-lg bg-white p-4 shadow-sm border-l-4 border-blue-400">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Gratuitas</p>
-              <p className="text-2xl font-bold text-gray-900">{totalFree ?? 0}</p>
-            </div>
-            <div className="rounded-lg p-2.5 bg-blue-50"><Users size={20} className="text-blue-500" /></div>
-          </div>
-        </div>
-        <div className="rounded-lg bg-white p-4 shadow-sm border-l-4 border-orange">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Receita</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
-            </div>
-            <div className="rounded-lg p-2.5 bg-orange/10"><DollarSign size={20} className="text-orange" /></div>
-          </div>
-        </div>
+        <StatCard
+          label="CONFIRMADAS"
+          value={totalConfirmed ?? 0}
+          icon={<CheckCircle size={18} />}
+          accent="var(--verde-600)"
+          accentBg="rgba(166,206,58,0.18)"
+        />
+        <StatCard
+          label="PENDENTES"
+          value={totalPending ?? 0}
+          icon={<Clock size={18} />}
+          accent="var(--laranja-600)"
+          accentBg="rgba(248,130,30,0.15)"
+        />
+        <StatCard
+          label="GRATUITAS"
+          value={totalFree ?? 0}
+          icon={<Users size={18} />}
+          accent="var(--ciano-600)"
+          accentBg="rgba(86,198,208,0.18)"
+        />
+        <StatCard
+          label="RECEITA"
+          value={formatCurrency(totalRevenue)}
+          icon={<DollarSign size={18} />}
+          accent="var(--laranja)"
+          accentBg="rgba(248,130,30,0.12)"
+          monoValue
+        />
       </div>
 
       {/* Filters */}
-      <div className="mb-4 rounded-lg bg-white p-4 shadow-sm">
-        <form className="flex flex-wrap items-end gap-4">
+      <div
+        className="mb-6 rounded-[20px] bg-white p-7"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="mb-5 min-w-0">
+          <div
+            className="mono text-[10px] tracking-[0.14em]"
+            style={{ color: 'var(--ink-50)' }}
+          >
+            FILTROS
+          </div>
+          <h2
+            className="display mt-1"
+            style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+          >
+            Refinar listagem
+          </h2>
+        </div>
+        <form className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Evento</label>
+            <label
+              className="mono text-[10px] tracking-[0.14em] mb-2 block"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              EVENTO
+            </label>
             <select
               name="evento"
               defaultValue={searchParams.evento ?? ''}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="admin-input admin-select w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+              style={{ border: '1px solid var(--line)' }}
             >
               <option value="">Todos os eventos</option>
               {events?.map((ev: any) => (
@@ -171,11 +200,17 @@ export default async function AdminInscricoesPage({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Status Pgto</label>
+            <label
+              className="mono text-[10px] tracking-[0.14em] mb-2 block"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              STATUS PGTO
+            </label>
             <select
               name="status"
               defaultValue={searchParams.status ?? ''}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="admin-input admin-select w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+              style={{ border: '1px solid var(--line)' }}
             >
               <option value="">Todos</option>
               <option value="confirmed">Confirmado</option>
@@ -186,103 +221,167 @@ export default async function AdminInscricoesPage({
             </select>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Buscar (nome ou CPF)</label>
+          <div className="lg:col-span-2">
+            <label
+              className="mono text-[10px] tracking-[0.14em] mb-2 block"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              BUSCAR (NOME OU CPF)
+            </label>
             <input
               type="text"
               name="busca"
               defaultValue={searchParams.busca ?? ''}
               placeholder="Nome ou CPF..."
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="admin-input w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+              style={{ border: '1px solid var(--line)' }}
             />
           </div>
 
-          <button
-            type="submit"
-            className="rounded-lg bg-purple px-4 py-2 text-sm font-medium text-white hover:bg-purple-dark"
-          >
-            Filtrar
-          </button>
-
-          <Link
-            href="/admin/inscricoes"
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-          >
-            Limpar
-          </Link>
+          <div className="flex items-center gap-3 lg:col-span-4">
+            <button type="submit" className="btn btn-orange">
+              Filtrar
+            </button>
+            <Link href="/admin/inscricoes" className="btn btn-ghost">
+              Limpar
+            </Link>
+          </div>
         </form>
       </div>
 
       {/* Table */}
-      <div className="rounded-lg bg-white shadow-sm">
-        <div className="overflow-x-auto">
+      <div
+        className="rounded-[20px] bg-white p-7"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="min-w-0">
+            <div
+              className="mono text-[10px] tracking-[0.14em]"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              {count ?? 0} REGISTRO(S)
+            </div>
+            <h2
+              className="display mt-1"
+              style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+            >
+              Lista de inscrições
+            </h2>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto -mx-2">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b text-gray-500">
-                <th className="px-6 py-3 font-medium">Nome</th>
-                <th className="px-6 py-3 font-medium">CPF</th>
-                <th className="px-6 py-3 font-medium">Evento</th>
-                <th className="px-6 py-3 font-medium">Qtd</th>
-                <th className="px-6 py-3 font-medium">Valor</th>
-                <th className="px-6 py-3 font-medium">Status</th>
-                <th className="px-6 py-3 font-medium">Data</th>
-                <th className="px-6 py-3 font-medium">Ações</th>
+              <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                {['Nome', 'CPF', 'Evento', 'Qtd', 'Valor', 'Status', 'Data', 'Ações'].map((h) => (
+                  <th
+                    key={h}
+                    className="mono text-[10px] tracking-[0.1em] py-3 px-2 font-medium uppercase"
+                    style={{ color: 'var(--ink-50)' }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y">
-              {inscriptions?.map((insc: any) => (
-                <tr key={insc.id} className="text-gray-700 hover:bg-gray-50">
-                  <td className="px-6 py-3 font-medium">{insc.nome}</td>
-                  <td className="px-6 py-3">{formatCPF(insc.cpf)}</td>
-                  <td className="px-6 py-3 max-w-[200px] truncate">{insc.events?.title ?? '—'}</td>
-                  <td className="px-6 py-3">{insc.quantity}</td>
-                  <td className="px-6 py-3">{formatCurrency(insc.total_amount)}</td>
-                  <td className="px-6 py-3">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                        statusColors[insc.payment_status] ?? 'bg-gray-100 text-gray-800'
-                      }`}
+            <tbody>
+              {inscriptions?.map((insc: any) => {
+                const status = statusStyles[insc.payment_status] ?? {
+                  bg: 'var(--paper-2)',
+                  color: 'var(--ink-50)',
+                  label: String(insc.payment_status).toUpperCase(),
+                }
+                return (
+                  <tr key={insc.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <td
+                      className="py-4 px-2 font-medium max-w-[180px] truncate"
+                      style={{ color: 'var(--ink)' }}
+                      title={insc.nome}
                     >
-                      {insc.payment_status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3">{formatDateShort(insc.created_at)}</td>
-                  <td className="px-6 py-3">
-                    <InscriptionActions
-                      inscription={JSON.parse(JSON.stringify({
-                        id: insc.id,
-                        order_number: insc.order_number,
-                        nome: insc.nome,
-                        email: insc.email,
-                        cpf: insc.cpf,
-                        telefone: insc.telefone,
-                        nome_empresa: insc.nome_empresa,
-                        cargo: insc.cargo,
-                        cep: insc.cep,
-                        rua: insc.rua,
-                        numero: insc.numero,
-                        bairro: insc.bairro,
-                        cidade: insc.cidade,
-                        estado: insc.estado,
-                        quantity: insc.quantity,
-                        is_half_price: insc.is_half_price,
-                        total_amount: insc.total_amount,
-                        payment_status: insc.payment_status,
-                        payment_id: insc.payment_id,
-                        payment_url: insc.payment_url,
-                        purchase_group: insc.purchase_group,
-                        coupon_id: insc.coupon_id,
-                        created_at: insc.created_at,
-                        event_title: insc.events?.title ?? '—',
-                      }))}
-                    />
-                  </td>
-                </tr>
-              ))}
+                      {insc.nome}
+                    </td>
+                    <td
+                      className="py-4 px-2 mono text-[11px] whitespace-nowrap"
+                      style={{ color: 'var(--ink-70)' }}
+                    >
+                      {formatCPF(insc.cpf)}
+                    </td>
+                    <td
+                      className="py-4 px-2 max-w-[220px] truncate"
+                      style={{ color: 'var(--ink-70)' }}
+                      title={insc.events?.title ?? '—'}
+                    >
+                      {insc.events?.title ?? '—'}
+                    </td>
+                    <td
+                      className="py-4 px-2 mono whitespace-nowrap"
+                      style={{ color: 'var(--ink-70)' }}
+                    >
+                      {insc.quantity}
+                    </td>
+                    <td
+                      className="py-4 px-2 mono whitespace-nowrap"
+                      style={{ color: 'var(--ink)' }}
+                    >
+                      {formatCurrency(insc.total_amount)}
+                    </td>
+                    <td className="py-4 px-2">
+                      <span
+                        className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium whitespace-nowrap"
+                        style={{ background: status.bg, color: status.color }}
+                      >
+                        {status.label}
+                      </span>
+                    </td>
+                    <td
+                      className="py-4 px-2 mono text-[11px] whitespace-nowrap"
+                      style={{ color: 'var(--ink-50)' }}
+                    >
+                      {formatDateShort(insc.created_at)}
+                    </td>
+                    <td className="py-4 px-2">
+                      <InscriptionActions
+                        inscription={JSON.parse(JSON.stringify({
+                          id: insc.id,
+                          order_number: insc.order_number,
+                          nome: insc.nome,
+                          email: insc.email,
+                          cpf: insc.cpf,
+                          telefone: insc.telefone,
+                          nome_empresa: insc.nome_empresa,
+                          cargo: insc.cargo,
+                          cep: insc.cep,
+                          rua: insc.rua,
+                          numero: insc.numero,
+                          bairro: insc.bairro,
+                          cidade: insc.cidade,
+                          estado: insc.estado,
+                          quantity: insc.quantity,
+                          is_half_price: insc.is_half_price,
+                          total_amount: insc.total_amount,
+                          payment_status: insc.payment_status,
+                          payment_id: insc.payment_id,
+                          payment_url: insc.payment_url,
+                          purchase_group: insc.purchase_group,
+                          coupon_id: insc.coupon_id,
+                          created_at: insc.created_at,
+                          event_title: insc.events?.title ?? '—',
+                        }))}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
               {(!inscriptions || inscriptions.length === 0) && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-400">
-                    Nenhuma inscrição encontrada.
+                  <td
+                    colSpan={8}
+                    className="py-16 text-center mono text-[11px] tracking-[0.14em]"
+                    style={{ color: 'var(--ink-50)' }}
+                  >
+                    NENHUMA INSCRIÇÃO ENCONTRADA
                   </td>
                 </tr>
               )}
@@ -296,6 +395,61 @@ export default async function AdminInscricoesPage({
           totalItems={count ?? 0}
           buildUrl={(p) => buildUrl({ pagina: String(p) })}
         />
+      </div>
+    </div>
+  )
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+  accent,
+  accentBg,
+  monoValue,
+}: {
+  label: string
+  value: number | string
+  icon: React.ReactNode
+  accent: string
+  accentBg: string
+  monoValue?: boolean
+}) {
+  return (
+    <div
+      className="group h-full rounded-[20px] bg-white p-5 transition-all hover:-translate-y-0.5 overflow-hidden"
+      style={{
+        border: '1px solid var(--line)',
+        boxShadow: '0 1px 0 rgba(0,0,0,0.02)',
+      }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div
+          className="mono text-[10px] tracking-[0.14em] truncate min-w-0 flex-1"
+          style={{ color: 'var(--ink-50)' }}
+        >
+          {label}
+        </div>
+        <div
+          className="rounded-lg p-2 transition-transform group-hover:scale-110 shrink-0"
+          style={{ background: accentBg, color: accent }}
+        >
+          {icon}
+        </div>
+      </div>
+      <div
+        className={`${monoValue ? 'mono font-bold' : 'display'} truncate`}
+        title={String(value)}
+        style={{
+          fontSize: monoValue
+            ? 'clamp(18px, 2.4vw, 24px)'
+            : 'clamp(28px, 3.4vw, 36px)',
+          letterSpacing: monoValue ? '-0.02em' : '-0.03em',
+          lineHeight: 1,
+          color: 'var(--ink)',
+        }}
+      >
+        {value}
       </div>
     </div>
   )

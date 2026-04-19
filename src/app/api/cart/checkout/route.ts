@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createCustomer, createPayment } from '@/lib/asaas'
 import { generateOrderNumber, generatePurchaseGroup } from '@/lib/utils'
 import { generateAndUploadQRCode } from '@/lib/qrcode'
+import { validateCouponWithAssociate, applyCouponDiscount } from '@/lib/coupons'
 
 const cartItemSchema = z.object({
   event_id: z.number().int(),
@@ -18,6 +19,7 @@ const checkoutSchema = z.object({
   email: z.string().email(),
   cpf: z.string().min(11),
   telefone: z.string().min(10),
+  cnpj: z.string().nullable().optional(),
   nome_empresa: z.string().nullable().optional(),
   cargo: z.string().nullable().optional(),
   cep: z.string().optional(),
@@ -60,10 +62,12 @@ export async function POST(request: Request) {
       unitPrice: number
       totalAmount: number
       couponId: number | null
+      associateId: string | null
       isFree: boolean
     }
 
     const processed: ProcessedItem[] = []
+    const cnpjDigits = (data.cnpj ?? '').replace(/\D/g, '') || null
 
     for (const item of data.items) {
       const event = eventMap.get(item.event_id)!
@@ -114,37 +118,46 @@ export async function POST(request: Request) {
       const unitPrice = item.is_half_price ? event.price / 2 : event.price
       let totalAmount = unitPrice * item.quantity
       let couponId: number | null = null
+      let associateId: string | null = null
 
-      // Validate coupon
+      // Validate coupon (incluindo lógica de associado)
       if (item.coupon_code && !isFree) {
-        const { data: coupon } = await supabase
+        const validation = await validateCouponWithAssociate(supabase, {
+          code: item.coupon_code,
+          eventId: item.event_id,
+          cnpj: cnpjDigits,
+        })
+
+        if (!validation.ok) {
+          return NextResponse.json(
+            {
+              error: `Cupom "${item.coupon_code.toUpperCase()}" para "${event.title}": ${validation.message}`,
+              error_code: validation.code,
+              event_id: item.event_id,
+            },
+            { status: 400 }
+          )
+        }
+
+        totalAmount = applyCouponDiscount(
+          totalAmount,
+          validation.coupon,
+          item.quantity
+        )
+        couponId = validation.coupon.id
+        associateId = validation.associate_id
+
+        // Incrementa current_uses (read-modify-write — adequado p/ baixo volume)
+        const { data: c } = await supabase
           .from('coupons')
-          .select('*')
-          .eq('code', item.coupon_code.toUpperCase())
-          .eq('active', true)
+          .select('current_uses')
+          .eq('id', couponId)
           .single()
-
-        if (coupon) {
-          const validForEvent = !coupon.event_id || coupon.event_id === item.event_id
-          const notExhausted = !coupon.max_uses || coupon.current_uses < coupon.max_uses
-          const now = new Date()
-          const validDate =
-            (!coupon.valid_from || new Date(coupon.valid_from) <= now) &&
-            (!coupon.valid_until || new Date(coupon.valid_until) >= now)
-
-          if (validForEvent && notExhausted && validDate) {
-            if (coupon.discount_type === 'percentage') {
-              totalAmount = totalAmount * (1 - coupon.discount_value / 100)
-            } else {
-              totalAmount = Math.max(0, totalAmount - coupon.discount_value * item.quantity)
-            }
-            couponId = coupon.id
-
-            await supabase
-              .from('coupons')
-              .update({ current_uses: coupon.current_uses + 1 })
-              .eq('id', coupon.id)
-          }
+        if (c) {
+          await supabase
+            .from('coupons')
+            .update({ current_uses: (c.current_uses ?? 0) + 1 })
+            .eq('id', couponId)
         }
       }
 
@@ -155,6 +168,7 @@ export async function POST(request: Request) {
         unitPrice,
         totalAmount: isFree ? 0 : totalAmount,
         couponId,
+        associateId,
         isFree,
       })
     }
@@ -167,6 +181,7 @@ export async function POST(request: Request) {
       nome: data.nome,
       email: data.email,
       cpf: cpfClean,
+      cnpj: cnpjDigits,
       telefone: data.telefone,
       nome_empresa: data.nome_empresa || null,
       cargo: data.cargo || null,
@@ -201,6 +216,7 @@ export async function POST(request: Request) {
           qr_code: groupQrCodeUrl,
           purchase_group: purchaseGroup,
           coupon_id: item.couponId,
+          associate_id: item.associateId,
         })
         .select()
         .single()
@@ -291,6 +307,7 @@ export async function POST(request: Request) {
           asaas_customer_id: customer.id,
           purchase_group: purchaseGroup,
           coupon_id: item.couponId,
+          associate_id: item.associateId,
         })
       }
     }

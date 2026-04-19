@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X, Loader2 } from 'lucide-react'
+import ModalPortal from '@/components/ui/ModalPortal'
 
 interface EventOption {
   id: number
@@ -123,6 +124,7 @@ export default function ManualInscriptionModal({ events }: ManualInscriptionModa
       </button>
 
       {open && (
+        <ModalPortal>
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onClick={handleClose}
@@ -326,6 +328,7 @@ export default function ManualInscriptionModal({ events }: ManualInscriptionModa
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   )

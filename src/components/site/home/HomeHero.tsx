@@ -148,12 +148,6 @@ const INSTAGRAM_URL = 'https://www.instagram.com/p/DXP-djWjkqR/'
 const INSTAGRAM_EMBED = `${INSTAGRAM_URL}embed/captioned/`
 
 function VideoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -167,7 +161,7 @@ function VideoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }
   }, [open, onClose])
 
-  if (!open || !mounted) return null
+  if (!open || typeof document === 'undefined') return null
 
   const node = (
     <div
@@ -237,7 +231,7 @@ export default function HomeHero() {
             </div>
             <h1
               className="display mb-7"
-              style={{ fontSize: 'clamp(48px, 9vw, 102px)' }}
+              style={{ fontSize: 80 }}
             >
               Gente que pensa
               <br />

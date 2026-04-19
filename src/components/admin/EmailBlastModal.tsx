@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Mail, X, Loader2, Send, Bell, CheckCircle } from 'lucide-react'
+import ModalPortal from '@/components/ui/ModalPortal'
 
 interface EmailBlastModalProps {
   eventId: number
@@ -54,6 +55,7 @@ export default function EmailBlastModal({ eventId, eventTitle }: EmailBlastModal
       </button>
 
       {open && (
+        <ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOpen(false)}>
           <div className="mx-4 w-full max-w-lg rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b">
@@ -181,6 +183,7 @@ export default function EmailBlastModal({ eventId, eventTitle }: EmailBlastModal
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   )

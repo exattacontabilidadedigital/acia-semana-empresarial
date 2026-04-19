@@ -1,84 +1,127 @@
-'use client'
-
-import { usePathname, useRouter } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Calendar, Users, LogOut } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
+import { LogOut } from 'lucide-react'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getUserOrgs, getActiveOrg } from '@/lib/orgs'
+import ParceiroSidebar from '@/components/parceiro/ParceiroSidebar'
+import OrgSwitcher from '@/components/parceiro/OrgSwitcher'
 
-const navItems = [
-  { href: '/parceiro/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/parceiro/eventos', label: 'Meus Eventos', icon: Calendar },
-  { href: '/parceiro/inscricoes', label: 'Inscrições', icon: Users },
-]
+export const dynamic = 'force-dynamic'
 
-export default function ParceiroLayout({
+export default async function ParceiroLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createClient()
+  const supabase = createServerSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login?redirect=/parceiro/dashboard')
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-    router.push('/login')
+  const orgs = await getUserOrgs()
+  const activeOrg = await getActiveOrg()
+
+  // Sem org? Mostra um shell vazio com instrução
+  if (!activeOrg) {
+    return (
+      <NoOrgShell email={user.email ?? ''}>{children}</NoOrgShell>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-purple-900 text-white flex flex-col">
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-6 border-b border-purple-800">
-          <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-            <Calendar className="w-6 h-6 text-white" />
+    <div
+      className="min-h-screen"
+      style={{ background: 'var(--paper)', color: 'var(--ink)' }}
+    >
+      <ParceiroSidebar isOwner={activeOrg.role === 'owner'} />
+
+      <div className="lg:pl-64 transition-all duration-200">
+        {/* Top bar */}
+        <header
+          className="sticky top-0 z-30 flex h-14 lg:h-16 items-center gap-3 px-4 lg:px-8"
+          style={{
+            background: 'var(--paper)',
+            borderBottom: '1px solid var(--line)',
+          }}
+        >
+          <div className="flex-1 min-w-0">
+            <OrgSwitcher orgs={orgs} activeOrgId={activeOrg.id} />
           </div>
-          <div>
-            <h1 className="text-lg font-bold leading-tight">Portal do Parceiro</h1>
-            <p className="text-xs text-purple-300">Semana Empresarial</p>
-          </div>
+          <form action="/api/auth/signout" method="post">
+            <button
+              type="submit"
+              title="Sair"
+              className="rounded-lg p-2 hover:bg-paper-2 transition-colors"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              <LogOut size={16} />
+            </button>
+          </form>
+        </header>
+
+        <main className="p-4 lg:p-10">{children}</main>
+      </div>
+    </div>
+  )
+}
+
+function NoOrgShell({
+  email,
+  children,
+}: {
+  email: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden"
+      style={{ background: 'var(--paper)' }}
+    >
+      <div
+        aria-hidden
+        className="absolute bottom-0 left-0 right-0 flex"
+        style={{ height: 6 }}
+      >
+        <span style={{ flex: 1, background: 'var(--laranja)' }} />
+        <span style={{ flex: 1, background: 'var(--verde)' }} />
+        <span style={{ flex: 1, background: 'var(--ciano)' }} />
+        <span style={{ flex: 1, background: 'var(--azul)' }} />
+      </div>
+      <div
+        className="relative w-full max-w-[480px] rounded-[20px] bg-white p-8 page-enter"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="eyebrow mb-3">
+          <span className="dot" />
+          PORTAL DO PARCEIRO
         </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-white/20 text-white'
-                    : 'text-purple-200 hover:bg-white/10 hover:text-white'
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
-
-        {/* Logout */}
-        <div className="px-4 py-4 border-t border-purple-800">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-purple-200 hover:bg-white/10 hover:text-white transition-colors w-full"
-          >
-            <LogOut className="w-5 h-5" />
-            Sair
-          </button>
+        <h1 className="display" style={{ fontSize: 32 }}>
+          Sem organização ativa
+        </h1>
+        <p className="mt-4" style={{ color: 'var(--ink-70)', fontSize: 15 }}>
+          Você está logado como <strong>{email}</strong> mas ainda não está
+          vinculado a nenhuma organização parceira ativa.
+        </p>
+        <p
+          className="mt-3 text-sm"
+          style={{ color: 'var(--ink-70)' }}
+        >
+          Se recebeu um convite por email, abra o link mágico. Caso contrário,
+          peça ao administrador da plataforma para adicioná-lo.
+        </p>
+        <div className="mt-6 flex gap-3 flex-wrap">
+          <Link href="/" className="btn btn-ghost">
+            Ir para o site
+          </Link>
+          <form action="/api/auth/signout" method="post">
+            <button type="submit" className="btn btn-ghost">
+              <LogOut size={14} /> Sair
+            </button>
+          </form>
         </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="ml-64 min-h-screen">
-        {children}
-      </main>
+        <div className="hidden">{children}</div>
+      </div>
     </div>
   )
 }

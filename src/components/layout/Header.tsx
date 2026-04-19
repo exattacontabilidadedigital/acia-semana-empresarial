@@ -75,7 +75,6 @@ export default function Header() {
           <Link
             href="/inscricoes/minhas"
             className="nav-link"
-            style={{ fontSize: 13 }}
           >
             Minhas inscrições
           </Link>

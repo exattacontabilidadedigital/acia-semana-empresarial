@@ -133,53 +133,104 @@ export default function EditarEventoPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="animate-spin text-purple" size={32} />
+      <div className="page-enter flex items-center justify-center py-20">
+        <Loader2 className="animate-spin" size={32} style={{ color: 'var(--azul)' }} />
       </div>
     )
   }
 
+  const inputClass =
+    'admin-input w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors'
+  const selectClass =
+    'admin-select w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors'
+  const textareaClass =
+    'admin-textarea w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors'
+  const labelClass = 'mono block text-[10px] tracking-[0.1em] mb-2'
+  const inputStyle = { border: '1px solid var(--line)', color: 'var(--ink)' } as const
+  const labelStyle = { color: 'var(--ink-50)' } as const
+
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-gray-900 font-montserrat">Editar Evento</h1>
+    <div className="page-enter" style={{ color: 'var(--ink)' }}>
+      {/* Header */}
+      <div className="mb-10">
+        <div className="eyebrow mb-4">
+          <span className="dot" />
+          EVENTOS · EDIÇÃO
+        </div>
+        <h1 className="display" style={{ fontSize: 'clamp(40px, 5vw, 56px)' }}>
+          Editar Evento
+        </h1>
+        <p className="mt-3" style={{ color: 'var(--ink-70)', fontSize: 15, maxWidth: 560 }}>
+          Atualize os dados do evento. As alterações entram em vigor imediatamente após salvar.
+        </p>
+      </div>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 p-4 text-sm text-red-600">{error}</div>
+        <div
+          className="mb-6 rounded-2xl p-4 text-sm"
+          style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}
+        >
+          {error}
+        </div>
       )}
 
-      <form onSubmit={handleSubmit} className="rounded-lg bg-white p-6 shadow-sm">
+      <form
+        onSubmit={handleSubmit}
+        className="rounded-[20px] bg-white p-7"
+        style={{ border: '1px solid var(--line)' }}
+      >
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="min-w-0">
+            <div
+              className="mono text-[10px] tracking-[0.14em]"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              FORMULÁRIO
+            </div>
+            <h2
+              className="display mt-1"
+              style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+            >
+              Dados do evento
+            </h2>
+          </div>
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2">
           <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Titulo</label>
+            <label className={labelClass} style={labelStyle}>TÍTULO</label>
             <input
               type="text"
               name="title"
               value={form.title}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Descricao</label>
+            <label className={labelClass} style={labelStyle}>DESCRIÇÃO</label>
             <textarea
               name="description"
               value={form.description}
               onChange={handleChange}
               required
               rows={4}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={textareaClass}
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Categoria</label>
+            <label className={labelClass} style={labelStyle}>CATEGORIA</label>
             <select
               name="category"
               value={form.category}
               onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={selectClass}
+              style={inputStyle}
             >
               {categories.map((cat) => (
                 <option key={cat} value={cat}>
@@ -190,12 +241,13 @@ export default function EditarEventoPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
+            <label className={labelClass} style={labelStyle}>STATUS</label>
             <select
               name="status"
               value={form.status}
               onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={selectClass}
+              style={inputStyle}
             >
               <option value="draft">Rascunho</option>
               <option value="active">Ativo</option>
@@ -206,65 +258,70 @@ export default function EditarEventoPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Data</label>
+            <label className={labelClass} style={labelStyle}>DATA</label>
             <input
               type="date"
               name="event_date"
               value={form.event_date}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Horario Inicio</label>
+            <label className={labelClass} style={labelStyle}>HORÁRIO INÍCIO</label>
             <input
               type="time"
               name="start_time"
               value={form.start_time}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Horario Fim</label>
+            <label className={labelClass} style={labelStyle}>HORÁRIO FIM</label>
             <input
               type="time"
               name="end_time"
               value={form.end_time}
               onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Local</label>
+            <label className={labelClass} style={labelStyle}>LOCAL</label>
             <input
               type="text"
               name="location"
               value={form.location}
               onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Capacidade</label>
+            <label className={labelClass} style={labelStyle}>CAPACIDADE</label>
             <input
               type="number"
               name="capacity"
               value={form.capacity}
               onChange={handleChange}
               min={1}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Preco (R$)</label>
+            <label className={labelClass} style={labelStyle}>PREÇO (R$)</label>
             <input
               type="number"
               name="price"
@@ -272,12 +329,13 @@ export default function EditarEventoPage() {
               onChange={handleChange}
               min={0}
               step={0.01}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Vagas meia-entrada</label>
+            <label className={labelClass} style={labelStyle}>VAGAS MEIA-ENTRADA</label>
             <input
               type="number"
               name="half_price"
@@ -285,39 +343,54 @@ export default function EditarEventoPage() {
               onChange={handleChange}
               min={0}
               step={1}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple focus:outline-none focus:ring-1 focus:ring-purple"
+              className={inputClass}
+              style={inputStyle}
             />
-            <p className="mt-1 text-xs text-gray-400">Quantidade de inscrições com 50% de desconto disponíveis</p>
+            <p
+              className="mono text-[10px] tracking-[0.06em] mt-2"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              QUANTIDADE DE INSCRIÇÕES COM 50% DE DESCONTO DISPONÍVEIS
+            </p>
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Imagem</label>
+            <label className={labelClass} style={labelStyle}>IMAGEM</label>
             {form.image_url && (
-              <p className="mb-2 text-xs text-gray-400">Imagem atual definida. Envie uma nova para substituir.</p>
+              <p
+                className="mono text-[10px] tracking-[0.06em] mb-2"
+                style={{ color: 'var(--ink-50)' }}
+              >
+                IMAGEM ATUAL DEFINIDA · ENVIE UMA NOVA PARA SUBSTITUIR
+              </p>
             )}
             <input
               type="file"
               accept="image/*"
               onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-purple/10 file:px-3 file:py-1 file:text-sm file:text-purple"
+              className="admin-input w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors file:mr-3 file:rounded-full file:border-0 file:px-3 file:py-1 file:text-xs file:font-medium file:cursor-pointer"
+              style={{
+                border: '1px solid var(--line)',
+                color: 'var(--ink-70)',
+              }}
             />
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div
+          className="mt-8 pt-6 flex justify-end gap-3"
+          style={{ borderTop: '1px solid var(--line)' }}
+        >
           <button
             type="button"
             onClick={() => router.push('/admin/eventos')}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-6 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            className="btn btn-ghost"
+            disabled={saving}
           >
             Cancelar
           </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-purple px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-dark disabled:opacity-50"
-          >
-            <Save size={18} />
+          <button type="submit" disabled={saving} className="btn btn-orange">
+            <Save size={16} />
             {saving ? 'Salvando...' : 'Salvar Alterações'}
           </button>
         </div>
