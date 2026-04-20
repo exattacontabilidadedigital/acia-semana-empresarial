@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useCallback, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import MinhasInscricoesPanel from '@/components/carrinho/MinhasInscricoesPanel'
 /* eslint-disable @next/next/no-img-element */
 import { z } from 'zod'
 import {
-  ShoppingCart,
+  CalendarCheck2,
   Trash2,
   Plus,
   Minus,
@@ -15,6 +16,7 @@ import {
   Calendar,
   Clock,
   MapPin,
+  Ticket,
 } from 'lucide-react'
 import { useCart } from '@/contexts/CartContext'
 import { formatCurrency, formatDate, formatTime, formatCPF, formatPhone } from '@/lib/utils'
@@ -95,8 +97,18 @@ function Field({
 
 export default function CarrinhoPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { cart, removeFromCart, updateCartItem, clearCart, cartCount, cartTotal } = useCart()
   const [step, setStep] = useState<'cart' | 'form'>('cart')
+  const [tab, setTab] = useState<'rascunho' | 'confirmadas'>(
+    searchParams?.get('aba') === 'confirmadas' ? 'confirmadas' : 'rascunho',
+  )
+
+  useEffect(() => {
+    const aba = searchParams?.get('aba')
+    if (aba === 'confirmadas') setTab('confirmadas')
+    else if (aba === 'rascunho') setTab('rascunho')
+  }, [searchParams])
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -324,44 +336,7 @@ export default function CarrinhoPage() {
     }
   }
 
-  // CARRINHO VAZIO
-  if (cart.length === 0 && step === 'cart') {
-    return (
-      <div className="page-enter">
-        <section
-          style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', padding: '96px 0' }}
-        >
-          <div className="container-site text-center" style={{ maxWidth: 560 }}>
-            <div
-              className="mx-auto mb-6 rounded-full grid place-items-center"
-              style={{ width: 80, height: 80, background: 'var(--paper-2)' }}
-            >
-              <ShoppingCart size={32} />
-            </div>
-            <div className="eyebrow mb-4 justify-center">
-              <span className="dot" />
-              CARRINHO
-            </div>
-            <h1
-              className="display mb-4"
-              style={{ fontSize: 'clamp(40px, 5vw, 64px)' }}
-            >
-              Seu carrinho está <span style={{ color: 'var(--laranja)' }}>vazio</span>.
-            </h1>
-            <p
-              className="mb-8"
-              style={{ fontSize: 17, color: 'var(--ink-70)', lineHeight: 1.6 }}
-            >
-              Escolha eventos e ingressos pra começar sua agenda da semana.
-            </p>
-            <Link href="/inscricoes" className="btn btn-primary btn-lg">
-              Ver eventos <ArrowRight size={16} />
-            </Link>
-          </div>
-        </section>
-      </div>
-    )
-  }
+  const rascunhoVazio = cart.length === 0
 
   // RESUMO (sidebar)
   const OrderSidebar = ({ showEditButton = false }: { showEditButton?: boolean }) => (
@@ -448,7 +423,7 @@ export default function CarrinhoPage() {
             className="w-full text-xs font-semibold underline-offset-4 hover:underline"
             style={{ color: 'var(--verde)' }}
           >
-            Editar carrinho
+            Editar programação
           </button>
         </div>
       )}
@@ -461,16 +436,22 @@ export default function CarrinhoPage() {
         <div className="container-site">
           <div className="eyebrow mb-6">
             <span className="dot" />
-            {step === 'cart' ? 'MEU CARRINHO' : 'FINALIZAR COMPRA'}
+            {step === 'cart' ? 'MINHA PROGRAMAÇÃO' : 'FINALIZAR INSCRIÇÃO'}
           </div>
           <h1
             className="display mb-6"
             style={{ fontSize: 'clamp(40px, 6vw, 80px)' }}
           >
             {step === 'cart' ? (
-              <>
-                Confira seu <span style={{ color: 'var(--laranja)' }}>pedido</span>.
-              </>
+              tab === 'confirmadas' ? (
+                <>
+                  Suas <span style={{ color: 'var(--laranja)' }}>inscrições</span>.
+                </>
+              ) : (
+                <>
+                  Sua <span style={{ color: 'var(--laranja)' }}>programação</span>.
+                </>
+              )
             ) : (
               <>
                 Seus <span style={{ color: 'var(--laranja)' }}>dados</span>.
@@ -478,48 +459,133 @@ export default function CarrinhoPage() {
             )}
           </h1>
 
-          {/* Progress */}
-          <div
-            className="flex gap-2 mt-10 pt-8"
-            style={{ borderTop: '1px solid var(--line)' }}
-          >
-            {[
-              { l: 'Carrinho', i: 1, current: step === 'cart' ? 1 : 2 },
-              { l: 'Dados e pagamento', i: 2, current: step === 'cart' ? 1 : 2 },
-            ].map((s) => {
-              const isActive = s.current === s.i
-              const isDone = s.current > s.i
-              return (
-                <div
-                  key={s.i}
-                  className="flex-1 rounded-lg"
+          {/* Tabs (somente no passo da programação) */}
+          {step === 'cart' && (
+            <div
+              className="flex gap-1 mt-10 pt-8 p-1 rounded-full w-full sm:w-auto sm:inline-flex"
+              style={{
+                borderTop: '1px solid var(--line)',
+                borderTopLeftRadius: 0,
+                borderTopRightRadius: 0,
+              }}
+            >
+              <div
+                className="flex gap-1 p-1 rounded-full"
+                style={{ background: 'var(--paper-2)' }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setTab('rascunho')}
+                  className="px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5"
                   style={{
-                    padding: '14px 16px',
-                    background: isActive
-                      ? 'var(--ink)'
-                      : isDone
-                        ? 'var(--verde)'
-                        : 'var(--paper-2)',
-                    color: isActive || isDone ? 'white' : 'var(--ink-70)',
+                    background: tab === 'rascunho' ? 'var(--ink)' : 'transparent',
+                    color: tab === 'rascunho' ? 'white' : 'var(--ink-70)',
                   }}
                 >
+                  <CalendarCheck2 size={14} />
+                  Rascunho
+                  {cartCount > 0 && (
+                    <span
+                      className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background:
+                          tab === 'rascunho' ? 'var(--laranja)' : 'var(--ink)',
+                        color: 'white',
+                      }}
+                    >
+                      {cartCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('confirmadas')}
+                  className="px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5"
+                  style={{
+                    background: tab === 'confirmadas' ? 'var(--ink)' : 'transparent',
+                    color: tab === 'confirmadas' ? 'white' : 'var(--ink-70)',
+                  }}
+                >
+                  <Ticket size={14} />
+                  Já sou inscrito
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Progress (somente quando na aba de rascunho e com itens) */}
+          {step === 'form' && (
+            <div className="flex gap-2 mt-6">
+              {[
+                { l: 'Programação', i: 1, current: 2 },
+                { l: 'Dados e pagamento', i: 2, current: 2 },
+              ].map((s) => {
+                const isActive = s.current === s.i
+                const isDone = s.current > s.i
+                return (
                   <div
-                    className="mono text-[10px] tracking-[0.1em]"
-                    style={{ opacity: 0.7 }}
+                    key={s.i}
+                    className="flex-1 rounded-lg"
+                    style={{
+                      padding: '14px 16px',
+                      background: isActive
+                        ? 'var(--ink)'
+                        : isDone
+                          ? 'var(--verde)'
+                          : 'var(--paper-2)',
+                      color: isActive || isDone ? 'white' : 'var(--ink-70)',
+                    }}
                   >
-                    ETAPA {s.i}
+                    <div
+                      className="mono text-[10px] tracking-[0.1em]"
+                      style={{ opacity: 0.7 }}
+                    >
+                      ETAPA {s.i}
+                    </div>
+                    <div className="text-sm font-semibold mt-1">{s.l}</div>
                   </div>
-                  <div className="text-sm font-semibold mt-1">{s.l}</div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 
       <section style={{ padding: '24px 0 96px' }}>
         <div className="container-site">
-          {step === 'cart' && (
+          {step === 'cart' && tab === 'confirmadas' && <MinhasInscricoesPanel />}
+
+          {step === 'cart' && tab === 'rascunho' && rascunhoVazio && (
+            <div
+              className="bg-white border border-line rounded-2xl text-center"
+              style={{ padding: '64px 32px', maxWidth: 560, margin: '0 auto' }}
+            >
+              <div
+                className="mx-auto mb-6 rounded-full grid place-items-center"
+                style={{ width: 72, height: 72, background: 'var(--paper-2)' }}
+              >
+                <CalendarCheck2 size={28} />
+              </div>
+              <h2
+                className="display mb-3"
+                style={{ fontSize: 28, letterSpacing: '-.02em' }}
+              >
+                Sua programação está{' '}
+                <span style={{ color: 'var(--laranja)' }}>vazia</span>.
+              </h2>
+              <p
+                className="mb-6"
+                style={{ fontSize: 15, color: 'var(--ink-70)', lineHeight: 1.6 }}
+              >
+                Escolha os eventos que você quer participar e monte sua agenda da semana.
+              </p>
+              <Link href="/inscricoes" className="btn btn-primary btn-lg">
+                Ver eventos <ArrowRight size={16} />
+              </Link>
+            </div>
+          )}
+
+          {step === 'cart' && tab === 'rascunho' && !rascunhoVazio && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 flex flex-col gap-3">
                 {cart.map((item) => {

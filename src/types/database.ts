@@ -307,6 +307,36 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['partners']['Insert']>
         Relationships: []
       }
+      chat_knowledge: {
+        Row: {
+          id: number
+          category: 'faq' | 'venue' | 'policy' | 'how_it_works' | 'other'
+          question: string
+          answer: string
+          keywords: string[] | null
+          edition_id: number | null
+          order_index: number
+          active: boolean
+          created_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: never
+          category: 'faq' | 'venue' | 'policy' | 'how_it_works' | 'other'
+          question: string
+          answer: string
+          keywords?: string[] | null
+          edition_id?: number | null
+          order_index?: number
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['chat_knowledge']['Insert']>
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -338,3 +368,4 @@ export type Coupon = Database['public']['Tables']['coupons']['Row']
 export type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 export type Exhibitor = Database['public']['Tables']['exhibitors']['Row']
 export type Partner = Database['public']['Tables']['partners']['Row']
+export type ChatKnowledge = Database['public']['Tables']['chat_knowledge']['Row']

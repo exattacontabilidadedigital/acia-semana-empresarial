@@ -24,62 +24,102 @@ function formatCurrency(value: number): string {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const orderNumber = searchParams.get('order')
+  const group = searchParams.get('group')
 
-  if (!orderNumber) {
-    return NextResponse.json({ error: 'Order number required' }, { status: 400 })
+  if (!group) {
+    return NextResponse.json({ error: 'Group required' }, { status: 400 })
   }
 
   const supabase = createAdminClient()
 
-  const { data: inscription } = await supabase
+  const { data: inscriptions } = await supabase
     .from('inscriptions')
     .select('*')
-    .eq('order_number', orderNumber)
-    .single()
+    .eq('purchase_group', group)
+    .order('created_at', { ascending: true })
 
-  if (!inscription) {
-    return NextResponse.json({ error: 'Inscrição não encontrada' }, { status: 404 })
+  if (!inscriptions || inscriptions.length === 0) {
+    return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 })
   }
 
-  if (inscription.payment_status !== 'confirmed' && inscription.payment_status !== 'free') {
+  // Apenas inscrições pagas/gratuitas podem gerar comprovante
+  const validInscriptions = inscriptions.filter(
+    (i) => i.payment_status === 'confirmed' || i.payment_status === 'free',
+  )
+
+  if (validInscriptions.length === 0) {
     return NextResponse.json(
-      { error: 'Inscrição ainda não confirmada.' },
+      { error: 'Nenhuma inscrição confirmada neste grupo.' },
       { status: 400 },
     )
   }
 
-  const { data: event } = await supabase
+  // Eventos + tickets
+  const eventIds = Array.from(new Set(validInscriptions.map((i) => i.event_id)))
+  const { data: events } = await supabase
     .from('events')
-    .select('*')
-    .eq('id', inscription.event_id)
-    .single()
+    .select('id, title, event_date, start_time, end_time, location')
+    .in('id', eventIds)
+  const eventMap = new Map((events ?? []).map((e) => [e.id, e]))
 
-  const { data: tickets } = await supabase
+  const inscriptionIds = validInscriptions.map((i) => i.id)
+  const { data: allTickets } = await supabase
     .from('tickets')
-    .select('id, participant_name')
-    .eq('inscription_id', inscription.id)
+    .select('id, inscription_id, participant_name')
+    .in('inscription_id', inscriptionIds)
 
-  const eventTitle = event?.title || 'Evento'
-  const eventDate = event?.event_date ? formatDate(event.event_date) : '—'
-  const eventTime = formatTime(event?.start_time)
-  const eventEndTime = formatTime(event?.end_time)
-  const eventLocation = event?.location || ''
-  const qrCode = inscription.qr_code || ''
+  const ticketsByInscription = new Map<number, Array<{ id: string; participant_name: string }>>()
+  for (const ticket of allTickets ?? []) {
+    const existing = ticketsByInscription.get(ticket.inscription_id) ?? []
+    existing.push({ id: ticket.id, participant_name: ticket.participant_name })
+    ticketsByInscription.set(ticket.inscription_id, existing)
+  }
+
+  // QR code do grupo (primeiro disponível — todos devem ser iguais no grupo)
+  const qrCode = validInscriptions.find((i) => !!i.qr_code)?.qr_code || ''
+
+  // Totais
+  const totalEvents = validInscriptions.length
+  const totalTickets = (allTickets ?? []).length
+  const totalPaid = validInscriptions.reduce(
+    (sum, i) => sum + Number(i.total_amount || 0),
+    0,
+  )
+
+  // Participante principal (todos no grupo tendem a ter o mesmo comprador)
+  const first = validInscriptions[0]
   const cpfFormatted =
-    inscription.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') || ''
-  const totalTickets = tickets?.length ?? 0
-  const totalPaid = Number(inscription.total_amount || 0)
+    first.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') || ''
 
-  const ticketsHtml =
-    tickets && tickets.length > 0
-      ? `<ul class="ticket-list">${tickets
-          .map(
-            (t) =>
-              `<li><span class="tn">${t.participant_name}</span> <span class="tid">${t.id.slice(0, 8)}</span></li>`,
-          )
-          .join('')}</ul>`
-      : ''
+  const eventsHtml = validInscriptions
+    .map((insc) => {
+      const event = eventMap.get(insc.event_id)
+      const tickets = ticketsByInscription.get(insc.id) ?? []
+      return `
+      <div class="event-card">
+        <div class="event-title">${event?.title || 'Evento'}</div>
+        <div class="event-meta">
+          <span><b>Data:</b> ${event?.event_date ? formatDate(event.event_date) : '—'}</span>
+          <span><b>Horário:</b> ${formatTime(event?.start_time)}${event?.end_time ? ' — ' + formatTime(event.end_time) : ''}</span>
+          ${event?.location ? `<span><b>Local:</b> ${event.location}</span>` : ''}
+        </div>
+        <div class="event-tickets">
+          ${tickets.length} ingresso${tickets.length === 1 ? '' : 's'}
+          ${insc.is_half_price ? '· meia-entrada' : ''}
+        </div>
+        ${tickets.length > 0
+          ? `<ul class="ticket-list">${tickets
+              .map(
+                (t) =>
+                  `<li><span class="tn">${t.participant_name}</span> <span class="tid">${t.id.slice(0, 8)}</span></li>`,
+              )
+              .join('')}</ul>`
+          : ''}
+        <div class="event-order">Pedido: <b>${insc.order_number}</b></div>
+      </div>
+    `
+    })
+    .join('')
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -162,8 +202,16 @@ export async function GET(request: Request) {
     margin-bottom: 16px;
   }
   .qr-wrap img { width: 180px; height: 180px; display: block; margin: 0 auto 10px; }
-  .qr-wrap .qr-label { font-size: 11px; color: #666; font-weight: 600; }
-  .qr-wrap .qr-hint { font-size: 10px; color: #999; margin-top: 4px; }
+  .qr-wrap .qr-label {
+    font-size: 11px;
+    color: #666;
+    font-weight: 600;
+  }
+  .qr-wrap .qr-hint {
+    font-size: 10px;
+    color: #999;
+    margin-top: 4px;
+  }
 
   .summary {
     display: grid;
@@ -236,7 +284,10 @@ export async function GET(request: Request) {
     letter-spacing: 0.3px;
     margin-bottom: 6px;
   }
-  .ticket-list { list-style: none; margin: 6px 0; }
+  .ticket-list {
+    list-style: none;
+    margin: 6px 0;
+  }
   .ticket-list li {
     background: #f5f5fa;
     padding: 6px 10px;
@@ -269,27 +320,27 @@ export async function GET(request: Request) {
   <div class="header">
     <h1>SEMANA EMPRESARIAL DE AÇAILÂNDIA 2026</h1>
     <h2>Comprovante de Inscrição</h2>
-    <div class="sub">Pedido: ${inscription.order_number}</div>
+    <div class="sub">Grupo de compra: ${group}</div>
   </div>
 
   <div class="body">
-    <span class="badge">${inscription.payment_status === 'free' ? 'INSCRIÇÃO GRATUITA' : 'INSCRIÇÃO CONFIRMADA'}</span>
+    <span class="badge">INSCRIÇÃO CONFIRMADA</span>
 
     <div class="buyer">
-      <div><div class="l">Participante</div><div class="v">${inscription.nome}</div></div>
-      <div><div class="l">E-mail</div><div class="v">${inscription.email}</div></div>
+      <div><div class="l">Participante</div><div class="v">${first.nome}</div></div>
+      <div><div class="l">E-mail</div><div class="v">${first.email}</div></div>
       <div><div class="l">CPF</div><div class="v">${cpfFormatted}</div></div>
-      <div><div class="l">Telefone</div><div class="v">${inscription.telefone || '—'}</div></div>
+      <div><div class="l">Telefone</div><div class="v">${first.telefone || '—'}</div></div>
     </div>
 
     <div class="summary">
       <div class="summary-tile">
-        <div class="n">1</div>
-        <div class="l">Evento</div>
+        <div class="n">${totalEvents}</div>
+        <div class="l">Eventos</div>
       </div>
       <div class="summary-tile">
         <div class="n">${totalTickets}</div>
-        <div class="l">Ingresso${totalTickets === 1 ? '' : 's'}</div>
+        <div class="l">Ingressos</div>
       </div>
       <div class="summary-tile">
         <div class="n">${formatCurrency(totalPaid)}</div>
@@ -299,37 +350,24 @@ export async function GET(request: Request) {
 
     ${qrCode
       ? `<div class="qr-wrap">
-          <img src="${qrCode}" alt="QR Code do ingresso" />
+          <img src="${qrCode}" alt="QR Code do grupo" />
           <div class="qr-label">Seu QR Code de acesso</div>
-          <div class="qr-hint">Apresente na entrada do evento</div>
+          <div class="qr-hint">Válido para todos os eventos deste comprovante</div>
         </div>`
       : ''}
 
     <div class="instructions">
       <h4>Como usar seu ingresso</h4>
       <ol>
-        <li>Apresente este QR Code no check-in do evento — impresso ou na tela do celular.</li>
+        <li>Apresente este QR Code no check-in de cada evento — impresso ou na tela do celular.</li>
         <li>Chegue com antecedência mínima de 30 minutos. Leve um documento com foto.</li>
         <li>Cada QR Code pode ser validado 1 vez por evento. Guarde este comprovante até o fim do evento.</li>
         <li>Em caso de dúvidas, fale com a organização: (99) 98833-4432 ou acia.aca@gmail.com.</li>
       </ol>
     </div>
 
-    <h3>Detalhes do evento</h3>
-    <div class="event-card">
-      <div class="event-title">${eventTitle}</div>
-      <div class="event-meta">
-        <span><b>Data:</b> ${eventDate}</span>
-        <span><b>Horário:</b> ${eventTime}${eventEndTime ? ' — ' + eventEndTime : ''}</span>
-        ${eventLocation ? `<span><b>Local:</b> ${eventLocation}</span>` : ''}
-      </div>
-      <div class="event-tickets">
-        ${totalTickets} ingresso${totalTickets === 1 ? '' : 's'}
-        ${inscription.is_half_price ? '· meia-entrada' : ''}
-      </div>
-      ${ticketsHtml}
-      <div class="event-order">Pedido: <b>${inscription.order_number}</b></div>
-    </div>
+    <h3>Eventos inclusos</h3>
+    ${eventsHtml}
 
     <div class="footer">
       <b>Semana Empresarial de Açailândia 2026</b><br>
@@ -345,7 +383,7 @@ export async function GET(request: Request) {
   return new NextResponse(pdfBuffer as unknown as BodyInit, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="comprovante-${orderNumber}.pdf"`,
+      'Content-Disposition': `inline; filename="comprovante-${group}.pdf"`,
     },
   })
 }

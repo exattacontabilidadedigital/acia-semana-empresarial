@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Menu, X, ShoppingCart, ArrowRight } from 'lucide-react'
+import { Menu, X, CalendarPlus, ArrowRight } from 'lucide-react'
 import { useCart } from '@/contexts/CartContext'
 
 const PAGES = [
@@ -63,9 +63,10 @@ export default function Header() {
           <Link
             href="/carrinho"
             className="nav-link relative inline-flex items-center"
-            aria-label="Carrinho"
+            aria-label="Minha programação"
+            title="Minha programação"
           >
-            <ShoppingCart size={18} />
+            <CalendarPlus size={18} />
             {cartCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-laranja text-white text-[10px] font-bold w-[18px] h-[18px] rounded-full flex items-center justify-center">
                 {cartCount > 99 ? '99+' : cartCount}
@@ -73,7 +74,7 @@ export default function Header() {
             )}
           </Link>
           <Link
-            href="/inscricoes/minhas"
+            href="/carrinho?aba=confirmadas"
             className="nav-link"
           >
             Minhas inscrições
@@ -89,8 +90,13 @@ export default function Header() {
         </div>
 
         <div className="lg:hidden flex items-center gap-3">
-          <Link href="/carrinho" className="relative text-ink" aria-label="Carrinho">
-            <ShoppingCart size={20} />
+          <Link
+            href="/carrinho"
+            className="relative text-ink"
+            aria-label="Minha programação"
+            title="Minha programação"
+          >
+            <CalendarPlus size={20} />
             {cartCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-laranja text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
                 {cartCount > 99 ? '99+' : cartCount}
@@ -121,7 +127,7 @@ export default function Header() {
               </Link>
             ))}
             <Link
-              href="/inscricoes/minhas"
+              href="/carrinho?aba=confirmadas"
               className="nav-link text-left"
               onClick={() => setMobileOpen(false)}
             >

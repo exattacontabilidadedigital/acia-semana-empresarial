@@ -6,6 +6,7 @@ import InscricaoQuickCard from '@/components/site/home/InscricaoQuickCard'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
 import type { Event } from '@/types/database'
+import { EDITION_CONFIG } from '@/lib/edition-config'
 
 const CATEGORY_COLOR: Record<string, string> = {
   feira: 'var(--laranja)',
@@ -28,32 +29,19 @@ function formatShortDate(date: string, time?: string) {
   return `${base} · ${hour}`
 }
 
-const REALIZADORES = [
-  {
-    n: 'ACIA',
-    d: 'Associação Comercial, Industrial e Serviços de Açailândia',
-    c: 'var(--laranja)',
-    logo: '/site/logo-acia.png',
-  },
-  {
-    n: 'SICA',
-    d: 'Sindicato do Comércio Varejista de Açailândia',
-    c: 'var(--laranja)',
-    logo: '/site/logo-sica.png',
-  },
-  {
-    n: 'CDL',
-    d: 'Câmara de Dirigentes Lojistas de Açailândia',
-    c: 'var(--verde)',
-    logo: '/site/logo-cdl.png',
-  },
-  {
-    n: 'SEBRAE',
-    d: 'Serviço Brasileiro de Apoio às Micro e Pequenas Empresas',
-    c: 'var(--ciano)',
-    logo: '/site/logo-sebrae.png',
-  },
-]
+const REALIZADOR_COLORS: Record<string, string> = {
+  ACIA: 'var(--laranja)',
+  SICA: 'var(--laranja)',
+  CDL: 'var(--verde)',
+  SEBRAE: 'var(--ciano)',
+}
+
+const REALIZADORES = EDITION_CONFIG.organizers.map((o) => ({
+  n: o.name,
+  d: o.full,
+  c: REALIZADOR_COLORS[o.name] ?? 'var(--ink)',
+  logo: o.logo,
+}))
 
 const PROGRAMA = [
   {

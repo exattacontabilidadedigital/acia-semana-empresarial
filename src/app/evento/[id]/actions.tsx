@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ShoppingCart, Check, Plus, Minus, ArrowRight } from 'lucide-react'
+import { CalendarPlus, CalendarCheck2, Check, Plus, Minus, ArrowRight } from 'lucide-react'
 import { useCart } from '@/contexts/CartContext'
 import { formatCurrency } from '@/lib/utils'
 import type { Event } from '@/types/database'
@@ -48,14 +48,14 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
     router.push('/carrinho')
   }
 
-  // ========== JÁ NO CARRINHO ==========
+  // ========== JÁ NA PROGRAMAÇÃO ==========
   if (isInCart) {
     return (
       <div className="space-y-4">
         <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <Check className="w-5 h-5 text-green-600" />
-            <span className="font-semibold text-green-800">Evento no carrinho</span>
+            <span className="font-semibold text-green-800">Evento na sua programação</span>
           </div>
 
           <div className="flex items-center gap-3 mb-4">
@@ -86,7 +86,7 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
             onClick={() => removeFromCart(event.id)}
             className="text-xs text-red-500 hover:underline"
           >
-            Remover do carrinho
+            Remover da programação
           </button>
         </div>
 
@@ -94,8 +94,8 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
           href="/carrinho"
           className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-orange text-white font-bold text-sm hover:bg-orange-dark transition-colors"
         >
-          <ShoppingCart size={18} />
-          Ir para o carrinho ({cartCount})
+          <CalendarCheck2 size={18} />
+          Ver minha programação ({cartCount})
           <ArrowRight size={16} />
         </Link>
 
@@ -110,12 +110,12 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
     )
   }
 
-  // ========== NÃO NO CARRINHO ==========
+  // ========== NÃO NA PROGRAMAÇÃO ==========
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <h3 className="text-lg font-bold text-dark mb-1">Garanta seu ingresso</h3>
       <p className="text-xs text-gray-400 mb-5">
-        Adicione ao carrinho e finalize a compra de todos os eventos juntos.
+        Adicione à sua programação e finalize a inscrição de todos os eventos juntos.
       </p>
 
       {/* Half price toggle */}
@@ -189,8 +189,8 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
         onClick={handleAddAndGo}
         className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-orange text-white font-bold text-sm hover:bg-orange-dark transition-colors mb-3"
       >
-        <ShoppingCart size={18} />
-        {event.price === 0 ? 'Inscrever-se' : `Comprar — ${formatCurrency((isHalfPrice ? event.price / 2 : event.price) * quantity)}`}
+        <CalendarPlus size={18} />
+        {event.price === 0 ? 'Inscrever-se' : `Inscrever — ${formatCurrency((isHalfPrice ? event.price / 2 : event.price) * quantity)}`}
       </button>
 
       <button
@@ -198,7 +198,7 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
         className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full border-2 border-purple text-purple font-semibold text-sm hover:bg-purple/5 transition-colors"
       >
         <Plus size={16} />
-        Adicionar ao carrinho e continuar vendo
+        Adicionar à programação e continuar vendo
       </button>
 
       {cartCount > 0 && (
@@ -206,7 +206,7 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
           href="/carrinho"
           className="block text-center text-xs text-purple font-semibold mt-3 hover:underline"
         >
-          Você tem {cartCount} {cartCount === 1 ? 'ingresso' : 'ingressos'} no carrinho
+          Você tem {cartCount} {cartCount === 1 ? 'evento' : 'eventos'} na sua programação
         </Link>
       )}
     </div>

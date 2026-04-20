@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { ArrowRight, ExternalLink } from 'lucide-react'
+import { EDITION_CONFIG } from '@/lib/edition-config'
 
-const TARGET = new Date('2026-08-17T08:00:00').getTime()
+const TARGET = new Date(EDITION_CONFIG.startDateTime).getTime()
 
 function useCountdown() {
   const [count, setCount] = useState({ d: 0, h: 0, m: 0, s: 0 })

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Instagram, Facebook, Youtube } from 'lucide-react'
+import { EDITION_CONFIG, formatEditionDateRange } from '@/lib/edition-config'
 
 const PAGES = [
   { href: '/', label: 'Início' },
@@ -11,7 +12,7 @@ const PAGES = [
   { href: '/inscricoes', label: 'Inscrições' },
 ]
 
-const REALIZADORES = ['ACIA', 'SICA', 'CDL', 'SEBRAE']
+const REALIZADORES = EDITION_CONFIG.organizers.map((o) => o.name)
 
 export default function Footer() {
   return (
@@ -54,7 +55,7 @@ export default function Footer() {
             </div>
             <div className="flex gap-3 mt-6">
               <a
-                href="https://www.instagram.com/aciaacailandia"
+                href={EDITION_CONFIG.social.instagramUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
@@ -63,7 +64,7 @@ export default function Footer() {
                 <Instagram size={16} />
               </a>
               <a
-                href="https://www.facebook.com/aciaacailandia"
+                href={EDITION_CONFIG.social.facebookUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook"
@@ -72,7 +73,7 @@ export default function Footer() {
                 <Facebook size={16} />
               </a>
               <a
-                href="#"
+                href={EDITION_CONFIG.social.youtubeUrl || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="YouTube"
@@ -121,7 +122,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/inscricoes/minhas" className="hover:text-white transition-colors">
+                <Link href="/carrinho?aba=confirmadas" className="hover:text-white transition-colors">
                   Minhas inscrições
                 </Link>
               </li>
@@ -131,7 +132,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/inscricoes/minhas" className="hover:text-white transition-colors">
+                <Link href="/carrinho?aba=confirmadas" className="hover:text-white transition-colors">
                   Emissão de certificado
                 </Link>
               </li>
@@ -144,15 +145,15 @@ export default function Footer() {
               Contato
             </h5>
             <ul className="flex flex-col gap-2.5" style={{ fontSize: 14 }}>
-              <li>Açailândia — MA</li>
+              <li>{EDITION_CONFIG.city} — {EDITION_CONFIG.state}</li>
               <li>
-                <a href="mailto:acia.aca@gmail.com" className="hover:text-white transition-colors">
-                  acia.aca@gmail.com
+                <a href={`mailto:${EDITION_CONFIG.contact.email}`} className="hover:text-white transition-colors">
+                  {EDITION_CONFIG.contact.email}
                 </a>
               </li>
               <li>
-                <a href="tel:+5599988334432" className="hover:text-white transition-colors">
-                  +55 99 98833-4432
+                <a href={`tel:+${EDITION_CONFIG.contact.whatsappDigits}`} className="hover:text-white transition-colors">
+                  {EDITION_CONFIG.contact.whatsappDisplay}
                 </a>
               </li>
               <li className="mt-3">
@@ -175,8 +176,8 @@ export default function Footer() {
         </div>
 
         <div className="mt-16 pt-6 border-t border-[#2a2b52] flex justify-between items-center flex-wrap gap-2 text-xs text-[#8a8ca8] mono">
-          <div>© 2026 SEMANA EMPRESARIAL DE AÇAILÂNDIA</div>
-          <div>17 — 22 DE AGOSTO · 2026</div>
+          <div>© {EDITION_CONFIG.year} SEMANA EMPRESARIAL DE AÇAILÂNDIA</div>
+          <div>{formatEditionDateRange().toUpperCase()}</div>
         </div>
       </div>
     </footer>

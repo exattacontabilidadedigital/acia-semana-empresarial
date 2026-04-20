@@ -1,104 +1,82 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, Printer, Mail, Check, Loader2 } from 'lucide-react'
+import { Download, Loader2 } from 'lucide-react'
 
-interface ConfirmacaoActionsProps {
+interface DownloadPdfButtonProps {
   pdfUrl: string
   orderNumber: string
-  email: string
-  eventTitle: string
+  variant?: 'compact' | 'full'
 }
 
-export default function ConfirmacaoActions({ pdfUrl, orderNumber, email, eventTitle }: ConfirmacaoActionsProps) {
-  const [emailSending, setEmailSending] = useState(false)
-  const [emailSent, setEmailSent] = useState(false)
-  const [emailError, setEmailError] = useState('')
+export function DownloadPdfButton({ pdfUrl, orderNumber, variant = 'full' }: DownloadPdfButtonProps) {
+  const [downloading, setDownloading] = useState(false)
 
-  const handlePrint = () => {
-    window.print()
-  }
-
-  const handleDownload = () => {
-    const iframe = document.createElement('iframe')
-    iframe.style.display = 'none'
-    iframe.src = pdfUrl
-    document.body.appendChild(iframe)
-    iframe.onload = () => {
-      iframe.contentWindow?.print()
-      setTimeout(() => document.body.removeChild(iframe), 1000)
-    }
-  }
-
-  const handleSendEmail = async () => {
-    setEmailSending(true)
-    setEmailError('')
+  const handleDownload = async () => {
+    setDownloading(true)
     try {
-      const res = await fetch('/api/email/confirmation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_number: orderNumber }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setEmailSent(true)
-      } else {
-        setEmailError('Não foi possível enviar o email')
+      const res = await fetch(pdfUrl)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Não foi possível gerar o comprovante.')
+        return
       }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `comprovante-${orderNumber}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
     } catch {
-      setEmailError('Erro ao enviar email')
+      alert('Erro ao gerar o comprovante. Tente novamente.')
     } finally {
-      setEmailSending(false)
+      setDownloading(false)
     }
+  }
+
+  if (variant === 'compact') {
+    return (
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={downloading}
+        className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-purple text-white text-sm font-semibold hover:bg-purple-dark transition-colors disabled:opacity-60"
+      >
+        {downloading ? (
+          <>
+            <Loader2 size={16} className="animate-spin" />
+            Gerando PDF...
+          </>
+        ) : (
+          <>
+            <Download size={16} />
+            Baixar comprovante (PDF)
+          </>
+        )}
+      </button>
+    )
   }
 
   return (
-    <div>
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <button
-          onClick={handleDownload}
-          className="flex flex-col items-center justify-center gap-1.5 bg-purple text-white rounded-xl py-3 font-semibold text-xs hover:bg-purple-dark transition-colors"
-        >
-          <Download size={18} />
-          Baixar PDF
-        </button>
-
-        <button
-          onClick={handlePrint}
-          className="flex flex-col items-center justify-center gap-1.5 bg-cyan text-white rounded-xl py-3 font-semibold text-xs hover:bg-cyan-dark transition-colors"
-        >
-          <Printer size={18} />
-          Imprimir
-        </button>
-
-        <button
-          onClick={handleSendEmail}
-          disabled={emailSending || emailSent}
-          className={`flex flex-col items-center justify-center gap-1.5 rounded-xl py-3 font-semibold text-xs transition-colors ${
-            emailSent
-              ? 'bg-green-500 text-white'
-              : 'bg-orange text-white hover:bg-orange-dark'
-          } disabled:opacity-70`}
-        >
-          {emailSending ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : emailSent ? (
-            <Check size={18} />
-          ) : (
-            <Mail size={18} />
-          )}
-          {emailSending ? 'Enviando...' : emailSent ? 'Enviado!' : 'Enviar Email'}
-        </button>
-      </div>
-
-      {emailSent && (
-        <p className="text-xs text-green-600 text-center mb-2">
-          Confirmação enviada para <strong>{email}</strong>
-        </p>
+    <button
+      onClick={handleDownload}
+      disabled={downloading}
+      className="w-full flex items-center justify-center gap-2 bg-purple text-white rounded-full py-3 font-semibold text-sm hover:bg-purple-dark transition-colors disabled:opacity-60"
+    >
+      {downloading ? (
+        <>
+          <Loader2 size={16} className="animate-spin" />
+          Gerando PDF...
+        </>
+      ) : (
+        <>
+          <Download size={16} />
+          Baixar comprovante
+        </>
       )}
-      {emailError && (
-        <p className="text-xs text-red-500 text-center mb-2">{emailError}</p>
-      )}
-    </div>
+    </button>
   )
 }

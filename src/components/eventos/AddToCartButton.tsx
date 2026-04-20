@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ShoppingCart, Check, Plus, Minus } from 'lucide-react'
+import { CalendarPlus, Check, Plus, Minus } from 'lucide-react'
 import { useCart } from '@/contexts/CartContext'
 import type { Event } from '@/types/database'
 
@@ -103,7 +103,7 @@ export default function AddToCartButton({ event, availableSpots, halfPriceAvaila
         </>
       ) : (
         <>
-          <ShoppingCart size={14} />
+          <CalendarPlus size={14} />
           Adicionar
         </>
       )}

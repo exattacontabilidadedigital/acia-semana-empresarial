@@ -15,12 +15,14 @@ import {
   Store,
   Image as ImageIcon,
   Clock,
+  ScrollText,
   LogOut,
   Menu,
   X,
   ChevronLeft,
   ChevronRight,
   UserCog,
+  Bot,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -38,6 +40,8 @@ const navItems = [
   { href: '/admin/parceiros', label: 'Parceiros', icon: Building2 },
   { href: '/admin/edicoes', label: 'Edições', icon: Clock },
   { href: '/admin/galeria', label: 'Galeria', icon: ImageIcon },
+  { href: '/admin/legal', label: 'Termos & LGPD', icon: ScrollText },
+  { href: '/admin/chat-conhecimento', label: 'Conhecimento (Aci)', icon: Bot },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

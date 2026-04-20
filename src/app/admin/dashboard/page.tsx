@@ -296,7 +296,7 @@ export default async function AdminDashboardPage() {
         <MiniCard
           icon={<ShoppingCart size={16} />}
           title={`${totalGroups ?? 0} Compras`}
-          subtitle="via carrinho"
+          subtitle="via programação"
           accent="var(--ciano)"
         />
       </div>

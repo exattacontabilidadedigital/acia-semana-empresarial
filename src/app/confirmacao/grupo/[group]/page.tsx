@@ -12,9 +12,11 @@ import {
   Ticket as TicketIcon,
   AlertCircle,
   ExternalLink,
-  ShoppingCart,
+  CalendarCheck2,
   Loader2,
   RefreshCw,
+  Download,
+  ChevronDown,
 } from 'lucide-react'
 
 interface InscriptionData {
@@ -70,6 +72,11 @@ export default function GroupConfirmacaoPage() {
   const [error, setError] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState('')
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+
+  const toggleExpanded = (id: number) => {
+    setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }))
+  }
 
   const fetchData = async () => {
     try {
@@ -90,6 +97,33 @@ export default function GroupConfirmacaoPage() {
   useEffect(() => {
     fetchData()
   }, [group])
+
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
+
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true)
+    try {
+      const res = await fetch(`/api/tickets/group-pdf?group=${encodeURIComponent(group)}`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Não foi possível gerar o comprovante.')
+        return
+      }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `comprovante-${group}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      alert('Erro ao gerar o comprovante. Tente novamente.')
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
 
   const handleSync = async () => {
     setSyncing(true)
@@ -168,7 +202,7 @@ export default function GroupConfirmacaoPage() {
             </>
           ) : (
             <>
-              <ShoppingCart className="w-16 h-16 text-purple mx-auto mb-3" />
+              <CalendarCheck2 className="w-16 h-16 text-purple mx-auto mb-3" />
               <h1 className="text-2xl font-bold text-dark">Suas Inscrições</h1>
             </>
           )}
@@ -193,6 +227,25 @@ export default function GroupConfirmacaoPage() {
             />
             <p className="text-xs text-gray-400 mt-2">Apresente este QR Code na entrada dos eventos</p>
             <p className="text-[10px] text-gray-300 mt-1">Válido para todos os eventos abaixo</p>
+
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+              className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-purple text-white text-sm font-semibold hover:bg-purple-dark transition-colors disabled:opacity-60"
+            >
+              {downloadingPdf ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Gerando PDF...
+                </>
+              ) : (
+                <>
+                  <Download size={16} />
+                  Baixar comprovante (PDF)
+                </>
+              )}
+            </button>
           </div>
         )}
 
@@ -202,104 +255,146 @@ export default function GroupConfirmacaoPage() {
             const event = inscription.event
             const tickets = inscription.tickets
             const isPending = inscription.payment_status === 'pending'
-            const isConfirmed = inscription.payment_status === 'confirmed' || inscription.payment_status === 'free'
+            const isConfirmed =
+              inscription.payment_status === 'confirmed' ||
+              inscription.payment_status === 'free'
+            const isOpen = expanded[inscription.id] ?? true
 
             return (
               <div key={inscription.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 {/* Event info bar */}
-                <div className={`p-4 text-white ${
-                  isPending
-                    ? 'bg-gradient-to-r from-yellow-500 to-yellow-600'
-                    : 'bg-gradient-to-r from-purple to-purple-dark'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div>
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(inscription.id)}
+                  className={`w-full p-4 text-white text-left ${
+                    isPending
+                      ? 'bg-gradient-to-r from-yellow-500 to-yellow-600'
+                      : 'bg-gradient-to-r from-purple to-purple-dark'
+                  }`}
+                  aria-expanded={isOpen}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs uppercase tracking-wider opacity-80 mb-0.5">
                         Semana Empresarial 2026
                       </p>
-                      <h2 className="text-base font-bold">{event?.title}</h2>
+                      <h2 className="text-base font-bold truncate">{event?.title}</h2>
+                      {!isOpen && event && (
+                        <p className="text-[11px] opacity-80 mt-0.5 truncate">
+                          {formatDate(event.event_date)} · {tickets.length} ingresso
+                          {tickets.length === 1 ? '' : 's'}
+                        </p>
+                      )}
                     </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-white/20">
-                      {isPending ? 'Pendente' : inscription.payment_status === 'free' ? 'Gratuito' : 'Confirmado'}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-white/20 shrink-0">
+                      {isPending
+                        ? 'Pendente'
+                        : inscription.payment_status === 'free'
+                          ? 'Gratuito'
+                          : 'Confirmado'}
                     </span>
+                    <ChevronDown
+                      size={18}
+                      className={`shrink-0 transition-transform ${
+                        isOpen ? 'rotate-180' : ''
+                      }`}
+                    />
                   </div>
-                </div>
+                </button>
 
-                <div className="p-4">
-                  {/* Event details */}
-                  {event && (
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 mb-3">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={12} className="text-purple" />
-                        {formatDate(event.event_date)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} className="text-purple" />
-                        {formatTime(event.start_time)}
-                        {event.end_time ? ` - ${formatTime(event.end_time)}` : ''}
-                      </span>
-                      {event.location && (
+                {isOpen && (
+                  <div className="p-4">
+                    {/* Event details */}
+                    {event && (
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 mb-3">
                         <span className="flex items-center gap-1">
-                          <MapPin size={12} className="text-purple" />
-                          {event.location}
+                          <Calendar size={12} className="text-purple" />
+                          {formatDate(event.event_date)}
                         </span>
-                      )}
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} className="text-purple" />
+                          {formatTime(event.start_time)}
+                          {event.end_time ? ` - ${formatTime(event.end_time)}` : ''}
+                        </span>
+                        {event.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin size={12} className="text-purple" />
+                            {event.location}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Participant */}
+                    <div className="flex items-center gap-2 text-xs text-gray-700 mb-3 pb-3 border-b border-dashed border-gray-200">
+                      <User size={12} className="text-purple" />
+                      <span className="font-medium">{inscription.nome}</span>
+                      <span className="text-gray-400 text-[10px] ml-auto">
+                        {inscription.quantity}x{' '}
+                        {inscription.is_half_price ? 'meia' : 'inteira'}
+                      </span>
                     </div>
-                  )}
 
-                  {/* Participant */}
-                  <div className="flex items-center gap-2 text-xs text-gray-700 mb-3 pb-3 border-b border-dashed border-gray-200">
-                    <User size={12} className="text-purple" />
-                    <span className="font-medium">{inscription.nome}</span>
-                    <span className="text-gray-400 text-[10px] ml-auto">
-                      {inscription.quantity}x {inscription.is_half_price ? 'meia' : 'inteira'}
-                    </span>
-                  </div>
+                    {/* Pending payment */}
+                    {isPending && (
+                      <div className="text-center py-4 bg-yellow-50 rounded-xl">
+                        <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-1" />
+                        <p className="text-xs font-semibold text-yellow-800 mb-1">
+                          Aguardando pagamento
+                        </p>
+                        <p className="text-xs text-yellow-600 mb-3">
+                          Valor: {formatCurrency(inscription.total_amount)}
+                        </p>
+                        {inscription.payment_url && (
+                          <a
+                            href={inscription.payment_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-orange text-xs inline-flex items-center gap-1"
+                          >
+                            <ExternalLink size={12} />
+                            Pagar agora
+                          </a>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Pending payment */}
-                  {isPending && (
-                    <div className="text-center py-4 bg-yellow-50 rounded-xl">
-                      <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-1" />
-                      <p className="text-xs font-semibold text-yellow-800 mb-1">Aguardando pagamento</p>
-                      <p className="text-xs text-yellow-600 mb-3">
-                        Valor: {formatCurrency(inscription.total_amount)}
-                      </p>
-                      {inscription.payment_url && (
-                        <a
-                          href={inscription.payment_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-orange text-xs inline-flex items-center gap-1"
+                    {/* Tickets list */}
+                    {isConfirmed && tickets.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <p className="text-[10px] font-semibold text-orange uppercase tracking-wide flex items-center gap-1 mb-1.5">
+                          <TicketIcon size={10} />
+                          {tickets.length} ingresso{tickets.length > 1 ? 's' : ''}
+                        </p>
+                        <ul className="space-y-1">
+                          {tickets.map((t) => (
+                            <li
+                              key={t.id}
+                              className="flex justify-between items-center bg-[#f5f5fa] rounded-md px-2.5 py-1.5 text-xs"
+                            >
+                              <span className="text-gray-700">{t.participant_name}</span>
+                              <span className="text-gray-400 font-mono text-[10px]">
+                                {t.id.slice(0, 8)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Link to individual confirmation */}
+                    {isConfirmed && (
+                      <div className="mt-3 text-center">
+                        <Link
+                          href={`/confirmacao/${inscription.order_number}`}
+                          className="text-xs text-purple font-medium hover:underline"
                         >
-                          <ExternalLink size={12} />
-                          Pagar agora
-                        </a>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Tickets count */}
-                  {isConfirmed && tickets.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
-                        <TicketIcon size={10} />
-                        {tickets.length} ingresso{tickets.length > 1 ? 's' : ''}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Link to individual confirmation */}
-                  {isConfirmed && (
-                    <div className="mt-3 text-center">
-                      <Link
-                        href={`/confirmacao/${inscription.order_number}`}
-                        className="text-xs text-purple font-medium hover:underline"
-                      >
-                        Ver detalhes completos
-                      </Link>
-                    </div>
-                  )}
-                </div>
+                          Ver detalhes completos
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}

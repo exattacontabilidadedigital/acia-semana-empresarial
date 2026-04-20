@@ -1,11 +1,9 @@
 'use client'
 
-const WHATSAPP_NUMBER = '5599988334432'
-const DEFAULT_MESSAGE =
-  'Olá! Tenho interesse em saber mais sobre a Semana Empresarial de Açailândia 2026.'
+import { whatsappLink } from '@/lib/edition-config'
 
 export default function FloatingWhatsApp() {
-  const href = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(DEFAULT_MESSAGE)}`
+  const href = whatsappLink()
 
   return (
     <a

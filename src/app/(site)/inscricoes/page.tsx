@@ -1,9 +1,7 @@
-import Link from 'next/link'
-import Image from 'next/image'
-import { ArrowRight, Calendar, Clock, MapPin, Search } from 'lucide-react'
+import { Calendar, MousePointerClick, CalendarCheck2, CreditCard, FileDown } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { formatCurrency, formatDate, formatTime } from '@/lib/utils'
-import AddToCartButton from '@/components/eventos/AddToCartButton'
+import InscricaoEventCard from '@/components/eventos/InscricaoEventCard'
+import ProgramacaoButton from '@/components/carrinho/ProgramacaoButton'
 import type { Event } from '@/types/database'
 
 type EventWithCounts = Event & {
@@ -72,20 +70,103 @@ export default async function InscricoesPage() {
             style={{ color: 'var(--ink-70)', maxWidth: 700 }}
           >
             Escolha as atividades que você quer participar. Algumas são gratuitas, outras com valor
-            simbólico. Adicione ao carrinho e finalize a inscrição.
+            simbólico. Monte sua programação e finalize a inscrição.
           </p>
 
-          <div className="mt-10 pt-8 flex flex-wrap items-center gap-4" style={{ borderTop: '1px solid var(--line)' }}>
-            <Link
-              href="/inscricoes/minhas"
-              className="btn btn-ghost"
+          <div className="mt-10 pt-8" style={{ borderTop: '1px solid var(--line)' }}>
+            <div className="eyebrow mb-5">
+              <span className="dot" />
+              COMO SE INSCREVER
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                {
+                  n: '01',
+                  icon: MousePointerClick,
+                  title: 'Selecione os eventos',
+                  desc: 'Clique em "Adicionar" em um ou vários eventos que você quer participar.',
+                  color: 'var(--laranja)',
+                  bg: 'rgba(248,130,30,0.12)',
+                },
+                {
+                  n: '02',
+                  icon: CalendarCheck2,
+                  title: 'Clique em "Ver minha programação"',
+                  desc: 'O botão aparece em destaque com a quantidade de eventos selecionados.',
+                  color: 'var(--ciano-600)',
+                  bg: 'rgba(86,198,208,0.15)',
+                },
+                {
+                  n: '03',
+                  icon: CreditCard,
+                  title: 'Preencha e finalize',
+                  desc: 'Informe seus dados e, se o evento for pago, conclua o pagamento online.',
+                  color: 'var(--verde-600)',
+                  bg: 'rgba(166,206,58,0.18)',
+                },
+                {
+                  n: '04',
+                  icon: FileDown,
+                  title: 'Baixe o comprovante',
+                  desc: 'Após a confirmação, baixe o PDF com o QR Code — ele vale para todos os eventos.',
+                  color: 'var(--azul)',
+                  bg: 'var(--azul-50)',
+                },
+              ].map((step) => {
+                const Icon = step.icon
+                return (
+                  <div
+                    key={step.n}
+                    className="bg-white border border-line rounded-2xl"
+                    style={{ padding: 20 }}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div
+                        className="rounded-xl grid place-items-center"
+                        style={{
+                          width: 42,
+                          height: 42,
+                          background: step.bg,
+                          color: step.color,
+                        }}
+                      >
+                        <Icon size={20} />
+                      </div>
+                      <span
+                        className="mono text-[11px] font-semibold tracking-[0.1em]"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        {step.n}
+                      </span>
+                    </div>
+                    <h4
+                      className="display mb-1.5"
+                      style={{ fontSize: 16, letterSpacing: '-.01em' }}
+                    >
+                      {step.title}
+                    </h4>
+                    <p
+                      className="text-xs leading-relaxed"
+                      style={{ color: 'var(--ink-70)' }}
+                    >
+                      {step.desc}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            <p
+              className="mt-4 text-xs"
+              style={{ color: 'var(--ink-50)' }}
             >
-              <Search size={14} />
-              Já se inscreveu? Ver minhas inscrições
-            </Link>
-            <Link href="/carrinho" className="btn btn-ghost">
-              Ver carrinho <ArrowRight size={14} />
-            </Link>
+              Dica: você pode comprar vários eventos de uma só vez — o pagamento é único e o QR Code
+              serve para todos.
+            </p>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <ProgramacaoButton variant="cyan" />
           </div>
         </div>
       </section>
@@ -119,7 +200,7 @@ export default async function InscricoesPage() {
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {events.map((event) => {
                 const availableSpots = Math.max(
                   0,
@@ -129,122 +210,14 @@ export default async function InscricoesPage() {
                   0,
                   (event.half_price || 0) - event.halfPriceUsed,
                 )
-                const isFree = event.price === 0
-                const isSoldOut = availableSpots === 0
 
                 return (
-                  <article
+                  <InscricaoEventCard
                     key={event.id}
-                    className="bg-white border border-line rounded-2xl"
-                    style={{ padding: 24 }}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-[80px_1fr_auto] gap-5 items-start">
-                      <div
-                        className="rounded-xl overflow-hidden flex-shrink-0"
-                        style={{ width: 80, height: 80 }}
-                      >
-                        {event.image_url ? (
-                          <Image
-                            src={event.image_url}
-                            alt={event.title}
-                            width={80}
-                            height={80}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div
-                            className="w-full h-full"
-                            style={{
-                              background:
-                                'linear-gradient(135deg, var(--azul), var(--ciano))',
-                            }}
-                          />
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mb-2">
-                          <span className="mono text-[11px] text-ink-50 tracking-[0.1em] flex items-center gap-1.5">
-                            <Calendar size={11} />
-                            {formatDate(event.event_date)}
-                          </span>
-                          <span
-                            className="block w-1 h-1 rounded-full"
-                            style={{ background: 'var(--ink-50)' }}
-                          />
-                          <span className="mono text-[11px] text-ink-50 tracking-[0.1em] flex items-center gap-1.5">
-                            <Clock size={11} />
-                            {formatTime(event.start_time)}
-                            {event.end_time ? ` — ${formatTime(event.end_time)}` : ''}
-                          </span>
-                          {event.location && (
-                            <>
-                              <span
-                                className="block w-1 h-1 rounded-full"
-                                style={{ background: 'var(--ink-50)' }}
-                              />
-                              <span className="mono text-[11px] text-ink-50 tracking-[0.1em] flex items-center gap-1.5">
-                                <MapPin size={11} />
-                                {event.location}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <h3
-                          className="display mb-2"
-                          style={{ fontSize: 24, letterSpacing: '-.02em' }}
-                        >
-                          {event.title}
-                        </h3>
-                        <p
-                          className="line-clamp-2"
-                          style={{
-                            fontSize: 14,
-                            color: 'var(--ink-70)',
-                            lineHeight: 1.55,
-                          }}
-                        >
-                          {event.description}
-                        </p>
-                        <div
-                          className="mt-3 mono text-[11px] tracking-[0.05em]"
-                          style={{ color: isSoldOut ? 'var(--laranja-600)' : 'var(--ink-50)' }}
-                        >
-                          {isSoldOut
-                            ? 'ESGOTADO'
-                            : `${availableSpots} vagas disponíveis`}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-3 md:min-w-[140px]">
-                        {isFree ? (
-                          <div
-                            className="px-3 py-1.5 rounded-full text-[11px] font-semibold mono tracking-[0.06em]"
-                            style={{
-                              background: 'var(--verde)',
-                              color: '#1a3300',
-                            }}
-                          >
-                            GRATUITO
-                          </div>
-                        ) : (
-                          <div
-                            className="display"
-                            style={{ fontSize: 28, letterSpacing: '-.02em' }}
-                          >
-                            {formatCurrency(event.price)}
-                          </div>
-                        )}
-                        {!isSoldOut && (
-                          <AddToCartButton
-                            event={event}
-                            availableSpots={availableSpots}
-                            halfPriceAvailable={halfPriceAvailable}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </article>
+                    event={event}
+                    availableSpots={availableSpots}
+                    halfPriceAvailable={halfPriceAvailable}
+                  />
                 )
               })}
             </div>
@@ -261,12 +234,10 @@ export default async function InscricoesPage() {
                 JÁ ESCOLHEU?
               </div>
               <h3 className="display" style={{ fontSize: 24, letterSpacing: '-.02em' }}>
-                Finalize sua inscrição no carrinho
+                Finalize sua programação para a semana
               </h3>
             </div>
-            <Link href="/carrinho" className="btn btn-primary btn-lg">
-              Ir para o carrinho <ArrowRight size={16} />
-            </Link>
+            <ProgramacaoButton variant="primary" size="lg" />
           </div>
         </div>
       </section>

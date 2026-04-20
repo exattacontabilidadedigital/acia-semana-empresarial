@@ -222,6 +222,59 @@
     color: white;
   }
 
+  /* Legal documents body (HTML inside dangerouslySetInnerHTML) */
+  .legal-body p {
+    margin: 0 0 12px 0;
+  }
+  .legal-body p:last-child {
+    margin-bottom: 0;
+  }
+  .legal-body strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .legal-body a {
+    color: var(--azul);
+    font-weight: 600;
+  }
+  .legal-body a:hover {
+    text-decoration: underline;
+  }
+  .legal-body ul {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0;
+  }
+  .legal-body ul li {
+    position: relative;
+    padding-left: 16px;
+    margin-bottom: 8px;
+  }
+  .legal-body ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.65em;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--laranja);
+  }
+  .legal-body ol {
+    padding-left: 22px;
+    margin: 12px 0;
+  }
+  .legal-body ol li {
+    margin-bottom: 8px;
+  }
+  .legal-body code {
+    font-family: var(--font-jetbrains-mono), monospace;
+    font-size: 0.9em;
+    background: var(--paper-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
   /* Placeholder image style */
   .ph {
     background:
