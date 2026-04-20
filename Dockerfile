@@ -17,8 +17,12 @@ RUN if [ -f package-lock.json ]; then \
 # ---------- 2) builder: gera o build standalone ----------
 FROM node:20-slim AS builder
 WORKDIR /app
+# Limita heap em 896 MB — em hosts com pouca RAM o build OOM-kill (exit 137)
+# acontece quando Node tenta crescer o heap além do disponível. O cap força
+# o GC a ser mais agressivo dentro do orçamento. Ajuste se sua VM tiver mais RAM.
 ENV NEXT_TELEMETRY_DISABLED=1 \
-    PUPPETEER_SKIP_DOWNLOAD=true
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    NODE_OPTIONS=--max-old-space-size=896
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Vars NEXT_PUBLIC_* precisam existir no build (vão pro bundle).
