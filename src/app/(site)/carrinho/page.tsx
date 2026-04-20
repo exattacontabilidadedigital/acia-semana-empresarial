@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import MinhasInscricoesPanel from '@/components/carrinho/MinhasInscricoesPanel'
@@ -96,6 +96,14 @@ function Field({
 }
 
 export default function CarrinhoPage() {
+  return (
+    <Suspense fallback={null}>
+      <CarrinhoPageInner />
+    </Suspense>
+  )
+}
+
+function CarrinhoPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { cart, removeFromCart, updateCartItem, clearCart, cartCount, cartTotal } = useCart()
