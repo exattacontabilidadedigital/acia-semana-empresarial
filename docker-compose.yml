@@ -14,8 +14,12 @@ services:
     image: acia-semana-empresarial:latest
     container_name: acia-semana-empresarial
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    # Sem mapeamento "host:container" — o Hostinger Docker Manager faz
+    # reverse proxy descobrindo o container pela rede interna.
+    # Se você precisar acessar direto pelo host, troque `expose` por
+    # `ports: ["3001:3000"]` (ou outra porta livre).
+    expose:
+      - "3000"
     environment:
       NODE_ENV: production
       TZ: America/Sao_Paulo
