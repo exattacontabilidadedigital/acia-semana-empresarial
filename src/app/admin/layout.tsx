@@ -21,13 +21,23 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   UserCog,
   Bot,
+  Settings,
+  type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
-const navItems = [
+type NavLeaf = { href: string; label: string; icon: LucideIcon }
+type NavGroup = { id: string; label: string; icon: LucideIcon; children: NavLeaf[] }
+type NavEntry = NavLeaf | NavGroup
+
+const isGroup = (entry: NavEntry): entry is NavGroup =>
+  (entry as NavGroup).children !== undefined
+
+const navItems: NavEntry[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/eventos', label: 'Eventos', icon: Calendar },
   { href: '/admin/inscricoes', label: 'Inscrições', icon: Users },
@@ -38,15 +48,23 @@ const navItems = [
   { href: '/admin/usuarios', label: 'Usuários', icon: UserCog },
   { href: '/admin/relatorios', label: 'Relatórios', icon: BarChart3 },
   { href: '/admin/parceiros', label: 'Parceiros', icon: Building2 },
-  { href: '/admin/edicoes', label: 'Edições', icon: Clock },
-  { href: '/admin/galeria', label: 'Galeria', icon: ImageIcon },
-  { href: '/admin/legal', label: 'Termos & LGPD', icon: ScrollText },
-  { href: '/admin/chat-conhecimento', label: 'Conhecimento (Aci)', icon: Bot },
+  {
+    id: 'configuracoes',
+    label: 'Configurações',
+    icon: Settings,
+    children: [
+      { href: '/admin/edicoes', label: 'Edições', icon: Clock },
+      { href: '/admin/galeria', label: 'Galeria', icon: ImageIcon },
+      { href: '/admin/legal', label: 'Termos & LGPD', icon: ScrollText },
+      { href: '/admin/chat-conhecimento', label: 'Conhecimento (Aci)', icon: Bot },
+    ],
+  },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -54,7 +72,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     const saved = localStorage.getItem('admin_sidebar_collapsed')
     if (saved === 'true') setCollapsed(true)
+    try {
+      const savedGroups = localStorage.getItem('admin_sidebar_groups')
+      if (savedGroups) setOpenGroups(JSON.parse(savedGroups))
+    } catch {
+      /* ignore */
+    }
   }, [])
+
+  // Auto-expande grupo quando um filho está ativo
+  useEffect(() => {
+    for (const entry of navItems) {
+      if (isGroup(entry)) {
+        const childActive = entry.children.some((c) =>
+          pathname.startsWith(c.href),
+        )
+        if (childActive && !openGroups[entry.id]) {
+          setOpenGroups((prev) => ({ ...prev, [entry.id]: true }))
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
+  function toggleGroup(id: string) {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [id]: !prev[id] }
+      try {
+        localStorage.setItem('admin_sidebar_groups', JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
 
   function toggleCollapsed() {
     const next = !collapsed
@@ -169,44 +220,174 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Navigation */}
         <nav className="flex-1 space-y-0.5 px-3 py-2 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = pathname.startsWith(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                title={collapsed ? item.label : undefined}
-                className={cn(
-                  'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                  isActive
-                    ? 'text-white'
-                    : 'text-white/60 hover:text-white hover:bg-white/5',
-                  collapsed && 'lg:justify-center lg:px-0'
-                )}
-                style={
-                  isActive
-                    ? { background: 'rgba(248,130,30,0.18)' }
-                    : undefined
-                }
-              >
-                {isActive && (
-                  <span
-                    className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
-                    style={{
-                      width: 3,
-                      height: 20,
-                      background: 'var(--laranja)',
-                    }}
+          {navItems.map((entry) => {
+            if (!isGroup(entry)) {
+              const isActive = pathname.startsWith(entry.href)
+              return (
+                <Link
+                  key={entry.href}
+                  href={entry.href}
+                  onClick={() => setSidebarOpen(false)}
+                  title={collapsed ? entry.label : undefined}
+                  className={cn(
+                    'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                    isActive
+                      ? 'text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/5',
+                    collapsed && 'lg:justify-center lg:px-0'
+                  )}
+                  style={
+                    isActive
+                      ? { background: 'rgba(248,130,30,0.18)' }
+                      : undefined
+                  }
+                >
+                  {isActive && (
+                    <span
+                      className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
+                      style={{
+                        width: 3,
+                        height: 20,
+                        background: 'var(--laranja)',
+                      }}
+                    />
+                  )}
+                  <entry.icon
+                    size={18}
+                    className="flex-shrink-0"
+                    style={isActive ? { color: 'var(--laranja)' } : undefined}
                   />
+                  <span className={cn(collapsed && 'lg:hidden')}>{entry.label}</span>
+                </Link>
+              )
+            }
+
+            // Grupo (ex.: Configurações)
+            const anyChildActive = entry.children.some((c) =>
+              pathname.startsWith(c.href),
+            )
+            const isOpen = !!openGroups[entry.id] || anyChildActive
+
+            // Modo contraído: mostra filhos como ícones soltos (sem cabeçalho do grupo)
+            if (collapsed) {
+              return (
+                <div key={entry.id} className="hidden lg:block">
+                  {entry.children.map((child) => {
+                    const isActive = pathname.startsWith(child.href)
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        onClick={() => setSidebarOpen(false)}
+                        title={child.label}
+                        className={cn(
+                          'group relative flex items-center justify-center gap-3 rounded-lg px-0 py-2.5 text-sm font-medium transition-all',
+                          isActive
+                            ? 'text-white'
+                            : 'text-white/60 hover:text-white hover:bg-white/5',
+                        )}
+                        style={
+                          isActive
+                            ? { background: 'rgba(248,130,30,0.18)' }
+                            : undefined
+                        }
+                      >
+                        {isActive && (
+                          <span
+                            className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
+                            style={{
+                              width: 3,
+                              height: 20,
+                              background: 'var(--laranja)',
+                            }}
+                          />
+                        )}
+                        <child.icon
+                          size={18}
+                          className="flex-shrink-0"
+                          style={isActive ? { color: 'var(--laranja)' } : undefined}
+                        />
+                      </Link>
+                    )
+                  })}
+                </div>
+              )
+            }
+
+            return (
+              <div key={entry.id} className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(entry.id)}
+                  className={cn(
+                    'group w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                    anyChildActive
+                      ? 'text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/5',
+                  )}
+                >
+                  <entry.icon
+                    size={18}
+                    className="flex-shrink-0"
+                    style={
+                      anyChildActive ? { color: 'var(--laranja)' } : undefined
+                    }
+                  />
+                  <span className="flex-1 text-left">{entry.label}</span>
+                  <ChevronDown
+                    size={14}
+                    className={cn(
+                      'transition-transform',
+                      isOpen ? 'rotate-0' : '-rotate-90',
+                    )}
+                  />
+                </button>
+                {isOpen && (
+                  <div
+                    className="ml-3 pl-3 space-y-0.5"
+                    style={{ borderLeft: '1px solid rgba(255,255,255,0.08)' }}
+                  >
+                    {entry.children.map((child) => {
+                      const isActive = pathname.startsWith(child.href)
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={() => setSidebarOpen(false)}
+                          className={cn(
+                            'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+                            isActive
+                              ? 'text-white'
+                              : 'text-white/60 hover:text-white hover:bg-white/5',
+                          )}
+                          style={
+                            isActive
+                              ? { background: 'rgba(248,130,30,0.18)' }
+                              : undefined
+                          }
+                        >
+                          {isActive && (
+                            <span
+                              className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
+                              style={{
+                                width: 3,
+                                height: 18,
+                                background: 'var(--laranja)',
+                              }}
+                            />
+                          )}
+                          <child.icon
+                            size={16}
+                            className="flex-shrink-0"
+                            style={isActive ? { color: 'var(--laranja)' } : undefined}
+                          />
+                          <span>{child.label}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
                 )}
-                <item.icon
-                  size={18}
-                  className="flex-shrink-0"
-                  style={isActive ? { color: 'var(--laranja)' } : undefined}
-                />
-                <span className={cn(collapsed && 'lg:hidden')}>{item.label}</span>
-              </Link>
+              </div>
             )
           })}
         </nav>
