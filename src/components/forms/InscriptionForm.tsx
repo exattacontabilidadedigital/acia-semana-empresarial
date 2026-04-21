@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { z } from 'zod'
 import { ArrowLeft, ArrowRight, ShoppingCart, User } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
-import { formatCurrency, formatCPF, formatPhone } from '@/lib/utils'
+import { formatCurrency, formatCPF, formatPhone, formatCNPJ } from '@/lib/utils'
+import { inscriptionPersonalSchema } from '@/lib/schemas/inscription'
 
 interface InscriptionFormProps {
   event: {
@@ -20,40 +20,6 @@ interface InscriptionFormProps {
   halfPriceAvailable: number
 }
 
-const personalSchema = z.object({
-  nome: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
-  email: z.string().email('Email inválido'),
-  cpf: z
-    .string()
-    .min(11, 'CPF inválido')
-    .refine((val) => val.replace(/\D/g, '').length === 11, 'CPF deve ter 11 dígitos'),
-  telefone: z
-    .string()
-    .min(10, 'Telefone inválido')
-    .refine(
-      (val) => {
-        const digits = val.replace(/\D/g, '')
-        return digits.length >= 10 && digits.length <= 11
-      },
-      'Telefone deve ter 10 ou 11 dígitos',
-    ),
-  nome_empresa: z.string().optional(),
-  cargo: z.string().optional(),
-  cep: z
-    .string()
-    .min(8, 'CEP inválido')
-    .refine((val) => val.replace(/\D/g, '').length === 8, 'CEP deve ter 8 dígitos'),
-  rua: z.string().min(1, 'Rua é obrigatória'),
-  numero: z.string().min(1, 'Número é obrigatório'),
-  bairro: z.string().min(1, 'Bairro é obrigatório'),
-  cidade: z.string().min(1, 'Cidade é obrigatória'),
-  estado: z.string().min(2, 'Estado é obrigatório'),
-  complemento: z.string().optional(),
-  accepted_terms: z.literal(true, {
-    errorMap: () => ({ message: 'Você deve aceitar os termos de uso' }),
-  }),
-})
-
 export default function InscriptionForm({ event, availableSpots, halfPriceAvailable }: InscriptionFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -66,6 +32,11 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
   const [couponError, setCouponError] = useState('')
   const [couponApplied, setCouponApplied] = useState(false)
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false)
+  const [cnpj, setCnpj] = useState('')
+  const [cnpjRequired, setCnpjRequired] = useState(false)
+  const [cnpjCompanyName, setCnpjCompanyName] = useState('')
+  const [cnpjLoading, setCnpjLoading] = useState(false)
+  const [cnpjError, setCnpjError] = useState('')
 
   const hasHalfPrice = event.half_price > 0 && event.price > 0 && halfPriceAvailable > 0
 
@@ -91,6 +62,8 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [cpfLoaded, setCpfLoaded] = useState(false)
   const [cpfLoading, setCpfLoading] = useState(false)
+  const [cepLoading, setCepLoading] = useState(false)
+  const [cepFilled, setCepFilled] = useState(false)
 
   const maxQuantity = Math.min(10, availableSpots)
   const unitPrice = isHalfPrice ? event.price / 2 : event.price
@@ -160,11 +133,72 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
     const digits = value.replace(/\D/g, '').slice(0, 8)
     const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits
     handleChange('cep', formatted)
+    if (digits.length < 8) setCepFilled(false)
   }
+
+  const lookupCNPJ = useCallback(async (cnpjDigits: string) => {
+    if (cnpjDigits.length !== 14) return
+    setCnpjLoading(true)
+    setCnpjError('')
+    try {
+      const res = await fetch(`/api/cnpj/${cnpjDigits}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setCnpjCompanyName('')
+        if (res.status !== 404) {
+          setCnpjError(err.error || 'Não foi possível consultar CNPJ.')
+        }
+        return
+      }
+      const data = await res.json()
+      const name = data.nome_fantasia || data.razao_social || ''
+      setCnpjCompanyName(name)
+      if (name) {
+        setFormData((prev) => ({
+          ...prev,
+          nome_empresa: prev.nome_empresa || name,
+        }))
+      }
+    } catch {
+      setCnpjCompanyName('')
+    } finally {
+      setCnpjLoading(false)
+    }
+  }, [])
+
+  const handleCnpjChange = (value: string) => {
+    const formatted = formatCNPJ(value)
+    setCnpj(formatted)
+    setCnpjError('')
+    const digits = formatted.replace(/\D/g, '')
+    if (digits.length < 14) {
+      setCnpjCompanyName('')
+    } else {
+      lookupCNPJ(digits)
+    }
+  }
+
+  // Revalida o cupom automaticamente quando o CNPJ muda (debounced),
+  // caso já exista um cupom aplicado ou com erro de requires_cnpj.
+  useEffect(() => {
+    const digits = cnpj.replace(/\D/g, '')
+    if (digits.length !== 0 && digits.length !== 14) return
+    if (!couponCode.trim() || (!couponApplied && !cnpjRequired)) return
+
+    const timer = setTimeout(() => {
+      setCnpjRequired(false)
+      validateCoupon()
+    }, 500)
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cnpj])
 
   const lookupCEP = useCallback(async () => {
     const digits = formData.cep.replace(/\D/g, '')
     if (digits.length !== 8) return
+    setCepLoading(true)
+    setCepFilled(false)
     try {
       const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
       const data = await res.json()
@@ -177,8 +211,11 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
         estado: data.uf || prev.estado,
         complemento: data.complemento || prev.complemento,
       }))
+      setCepFilled(true)
     } catch {
       // silently fail
+    } finally {
+      setCepLoading(false)
     }
   }, [formData.cep])
 
@@ -189,17 +226,27 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
     setCouponApplied(false)
     setCouponDiscount(0)
     try {
+      const cnpjDigits = cnpj.replace(/\D/g, '')
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponCode, event_id: event.id }),
+        body: JSON.stringify({
+          code: couponCode,
+          event_id: event.id,
+          cnpj: cnpjDigits || null,
+        }),
       })
       const data = await res.json()
-      if (!res.ok) {
-        setCouponError(data.error || 'Cupom inválido')
+      if (!res.ok || !data.valid) {
+        if (data.requires_cnpj) setCnpjRequired(true)
+        setCouponError(data.message || data.error || 'Cupom inválido')
         return
       }
-      setCouponDiscount(data.discount_amount)
+      const discountPerUnit =
+        data.discount_type === 'percentage'
+          ? unitPrice * (Number(data.discount_value) / 100)
+          : Number(data.discount_value)
+      setCouponDiscount(discountPerUnit)
       setCouponApplied(true)
     } catch {
       setCouponError('Erro ao validar cupom')
@@ -222,7 +269,7 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
     e.preventDefault()
     setErrors({})
 
-    const result = personalSchema.safeParse(formData)
+    const result = inscriptionPersonalSchema.safeParse(formData)
     if (!result.success) {
       const fieldErrors: Record<string, string> = {}
       result.error.errors.forEach((err) => {
@@ -235,12 +282,14 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
 
     setIsSubmitting(true)
     try {
+      const cnpjDigits = cnpj.replace(/\D/g, '')
       const payload = {
         event_id: event.id,
         nome: formData.nome,
         email: formData.email,
         cpf: formData.cpf.replace(/\D/g, ''),
         telefone: formData.telefone.replace(/\D/g, ''),
+        cnpj: cnpjDigits || null,
         nome_empresa: formData.nome_empresa || null,
         cargo: formData.cargo || null,
         cep: formData.cep.replace(/\D/g, ''),
@@ -397,6 +446,36 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
             )}
           </div>
 
+          {!isFree && (
+            <div className="mb-5">
+              <label className="block text-xs font-semibold text-dark mb-2">
+                CNPJ <span className="text-gray-400 font-normal">(opcional — necessário para cupons de associados ACIA)</span>
+              </label>
+              <input
+                type="text"
+                value={cnpj}
+                onChange={(e) => handleCnpjChange(e.target.value)}
+                onBlur={() => {
+                  if (couponApplied || couponError) validateCoupon()
+                }}
+                className={`w-full px-3 py-2.5 border-2 rounded-lg font-montserrat text-sm text-dark bg-white focus:outline-none focus:border-purple ${
+                  cnpjRequired && !cnpj ? 'border-orange-400' : 'border-gray-200'
+                }`}
+                placeholder="00.000.000/0000-00"
+              />
+              {cnpjLoading && <p className="mt-1 text-xs text-purple">Buscando empresa...</p>}
+              {!cnpjLoading && cnpjCompanyName && (
+                <p className="mt-1 text-xs text-green-600">{cnpjCompanyName}</p>
+              )}
+              {!cnpjLoading && cnpjError && (
+                <p className="mt-1 text-xs text-red-500">{cnpjError}</p>
+              )}
+              {cnpjRequired && !cnpj && !cnpjError && (
+                <p className="mt-1 text-xs text-orange-600">Este cupom exige CNPJ de empresa associada.</p>
+              )}
+            </div>
+          )}
+
           {/* Resumo compacto */}
           <div className="bg-gray-50 rounded-xl p-4 mb-5">
             <div className="flex justify-between text-sm text-gray-500">
@@ -504,15 +583,23 @@ export default function InscriptionForm({ event, availableSpots, halfPriceAvaila
           {/* Endereço */}
           <h3 className="text-lg font-semibold text-dark mt-6 mb-4">Endereço</h3>
 
-          <Input
-            id="cep"
-            label="CEP *"
-            value={formData.cep}
-            onChange={(e) => handleCEPChange(e.target.value)}
-            onBlur={lookupCEP}
-            error={errors.cep}
-            placeholder="00000-000"
-          />
+          <div>
+            <Input
+              id="cep"
+              label="CEP *"
+              value={formData.cep}
+              onChange={(e) => handleCEPChange(e.target.value)}
+              onBlur={lookupCEP}
+              error={errors.cep}
+              placeholder="00000-000"
+            />
+            {cepLoading && (
+              <p className="text-xs text-purple -mt-3 mb-3">Buscando endereço...</p>
+            )}
+            {!cepLoading && cepFilled && (
+              <p className="text-xs text-green-600 -mt-3 mb-3">Endereço preenchido automaticamente</p>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4">
             <div className="md:col-span-2">

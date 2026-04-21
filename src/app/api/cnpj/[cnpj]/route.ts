@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isValidCNPJ } from '@/lib/utils'
 
 // BrasilAPI: https://brasilapi.com.br/api/cnpj/v1/{cnpj}
 // Pública, sem auth, sem rate limit estrito.
@@ -12,7 +13,15 @@ export async function GET(
 
   if (digits.length !== 14) {
     return NextResponse.json(
-      { error: 'CNPJ inválido (precisa ter 14 dígitos).' },
+      { error: 'CNPJ inválido — precisa ter 14 dígitos.' },
+      { status: 400 }
+    )
+  }
+
+  // Valida dígitos verificadores localmente antes de gastar chamada na BrasilAPI
+  if (!isValidCNPJ(digits)) {
+    return NextResponse.json(
+      { error: 'CNPJ inválido — verifique os números digitados.' },
       { status: 400 }
     )
   }
@@ -33,6 +42,26 @@ export async function GET(
       return NextResponse.json(
         { error: 'CNPJ não encontrado na Receita Federal.' },
         { status: 404 }
+      )
+    }
+
+    if (res.status === 400) {
+      // Repassa a mensagem da BrasilAPI ("CNPJ X.X.X/X-X inválido.")
+      const body = await res.json().catch(() => null)
+      return NextResponse.json(
+        {
+          error:
+            body?.message ||
+            'CNPJ inválido — verifique os números digitados.',
+        },
+        { status: 400 }
+      )
+    }
+
+    if (res.status === 429) {
+      return NextResponse.json(
+        { error: 'Muitas consultas em sequência. Aguarde alguns segundos.' },
+        { status: 429 }
       )
     }
 

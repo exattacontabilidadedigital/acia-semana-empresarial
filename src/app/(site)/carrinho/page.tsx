@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import MinhasInscricoesPanel from '@/components/carrinho/MinhasInscricoesPanel'
 /* eslint-disable @next/next/no-img-element */
-import { z } from 'zod'
 import {
   CalendarCheck2,
   Trash2,
@@ -19,41 +18,10 @@ import {
   Ticket,
 } from 'lucide-react'
 import { useCart } from '@/contexts/CartContext'
-import { formatCurrency, formatDate, formatTime, formatCPF, formatPhone } from '@/lib/utils'
+import { formatCurrency, formatDate, formatTime, formatCPF, formatPhone, formatCNPJ } from '@/lib/utils'
+import { inscriptionPersonalSchema } from '@/lib/schemas/inscription'
 
-const personalSchema = z.object({
-  nome: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
-  email: z.string().email('Email inválido'),
-  cpf: z
-    .string()
-    .min(11, 'CPF inválido')
-    .refine((val) => val.replace(/\D/g, '').length === 11, 'CPF deve ter 11 dígitos'),
-  telefone: z
-    .string()
-    .min(10, 'Telefone inválido')
-    .refine(
-      (val) => {
-        const digits = val.replace(/\D/g, '')
-        return digits.length >= 10 && digits.length <= 11
-      },
-      'Telefone deve ter 10 ou 11 dígitos',
-    ),
-  nome_empresa: z.string().optional(),
-  cargo: z.string().optional(),
-  cep: z
-    .string()
-    .min(8, 'CEP inválido')
-    .refine((val) => val.replace(/\D/g, '').length === 8, 'CEP deve ter 8 dígitos'),
-  rua: z.string().min(1, 'Rua é obrigatória'),
-  numero: z.string().min(1, 'Número é obrigatório'),
-  bairro: z.string().min(1, 'Bairro é obrigatório'),
-  cidade: z.string().min(1, 'Cidade é obrigatória'),
-  estado: z.string().min(2, 'Estado é obrigatório'),
-  complemento: z.string().optional(),
-  accepted_terms: z.literal(true, {
-    errorMap: () => ({ message: 'Você deve aceitar os termos de uso' }),
-  }),
-})
+const DRAFT_STORAGE_KEY = 'checkout-form-draft'
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -138,9 +106,52 @@ function CarrinhoPageInner() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [cpfLoaded, setCpfLoaded] = useState(false)
   const [cpfLoading, setCpfLoading] = useState(false)
+  const [cepLoading, setCepLoading] = useState(false)
+  const [cepFilled, setCepFilled] = useState(false)
   const [cnpj, setCnpj] = useState('')
   const [cnpjRequired, setCnpjRequired] = useState(false)
+  const [cnpjLoading, setCnpjLoading] = useState(false)
+  const [cnpjCompanyName, setCnpjCompanyName] = useState('')
+  const [cnpjError, setCnpjError] = useState('')
   const [couponErrors, setCouponErrors] = useState<Record<number, string>>({})
+  const [draftHydrated, setDraftHydrated] = useState(false)
+
+  // Hidrata rascunho do formulário salvo em localStorage (não persistimos accepted_terms)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY)
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<typeof formData> & { cnpj?: string }
+        setFormData((prev) => ({
+          ...prev,
+          ...saved,
+          accepted_terms: prev.accepted_terms,
+        }))
+        if (saved.cnpj) setCnpj(saved.cnpj)
+      }
+    } catch {
+      /* ignore corrupted draft */
+    } finally {
+      setDraftHydrated(true)
+    }
+  }, [])
+
+  // Persiste rascunho a cada mudança (depois de hidratar, pra evitar sobrescrever com inicial)
+  useEffect(() => {
+    if (!draftHydrated) return
+    try {
+      const { accepted_terms: _omit, ...rest } = formData
+      const payload = { ...rest, cnpj }
+      const hasContent = Object.values(payload).some((v) => v && String(v).length > 0)
+      if (hasContent) {
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload))
+      } else {
+        localStorage.removeItem(DRAFT_STORAGE_KEY)
+      }
+    } catch {
+      /* quota/storage — ignora */
+    }
+  }, [formData, cnpj, draftHydrated])
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -203,11 +214,82 @@ function CarrinhoPageInner() {
     const digits = value.replace(/\D/g, '').slice(0, 8)
     const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits
     handleChange('cep', formatted)
+    if (digits.length < 8) setCepFilled(false)
   }
+
+  const lookupCNPJ = useCallback(async (cnpjDigits: string) => {
+    if (cnpjDigits.length !== 14) return
+    setCnpjLoading(true)
+    setCnpjError('')
+    try {
+      const res = await fetch(`/api/cnpj/${cnpjDigits}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setCnpjCompanyName('')
+        if (res.status !== 404) {
+          setCnpjError(err.error || 'Não foi possível consultar CNPJ.')
+        }
+        return
+      }
+      const data = await res.json()
+      const name = data.nome_fantasia || data.razao_social || ''
+      setCnpjCompanyName(name)
+      if (name) {
+        setFormData((prev) => ({
+          ...prev,
+          nome_empresa: prev.nome_empresa || name,
+        }))
+      }
+    } catch {
+      setCnpjCompanyName('')
+    } finally {
+      setCnpjLoading(false)
+    }
+  }, [])
+
+  const handleCnpjChange = (value: string) => {
+    const formatted = formatCNPJ(value)
+    setCnpj(formatted)
+    setCnpjError('')
+    const digits = formatted.replace(/\D/g, '')
+    if (digits.length < 14) {
+      setCnpjCompanyName('')
+    } else {
+      lookupCNPJ(digits)
+    }
+  }
+
+  // Revalida automaticamente os cupons aplicados quando o CNPJ muda.
+  // Debounced para evitar múltiplas chamadas durante digitação.
+  useEffect(() => {
+    const digits = cnpj.replace(/\D/g, '')
+    if (digits.length !== 0 && digits.length !== 14) return
+
+    const timer = setTimeout(() => {
+      const itemsToRecheck = cart.filter(
+        (item) => item.couponCode || couponErrors[item.eventId],
+      )
+      if (itemsToRecheck.length === 0) {
+        if (digits.length === 14) setCnpjRequired(false)
+        return
+      }
+      // Limpa flag requires_cnpj — se ainda for necessário, a validação vai setar de novo
+      setCnpjRequired(false)
+      for (const item of itemsToRecheck) {
+        const code = item.couponCode
+        if (code) validateCoupon(item.eventId, code)
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cnpj])
 
   const lookupCEP = useCallback(async () => {
     const digits = formData.cep.replace(/\D/g, '')
     if (digits.length !== 8) return
+    setCepLoading(true)
+    setCepFilled(false)
     try {
       const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
       const data = await res.json()
@@ -220,8 +302,11 @@ function CarrinhoPageInner() {
         estado: data.uf || prev.estado,
         complemento: data.complemento || prev.complemento,
       }))
+      setCepFilled(true)
     } catch {
       /* silent */
+    } finally {
+      setCepLoading(false)
     }
   }, [formData.cep])
 
@@ -281,7 +366,7 @@ function CarrinhoPageInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
-    const result = personalSchema.safeParse(formData)
+    const result = inscriptionPersonalSchema.safeParse(formData)
     if (!result.success) {
       const fieldErrors: Record<string, string> = {}
       result.error.errors.forEach((err) => {
@@ -330,6 +415,11 @@ function CarrinhoPageInner() {
         return
       }
 
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY)
+      } catch {
+        /* ignore */
+      }
       clearCart()
       if (data.payment_url) {
         window.open(data.payment_url, '_blank')
@@ -777,6 +867,74 @@ function CarrinhoPageInner() {
                   )
                 })}
 
+                {/* CNPJ de associado — opcional, habilita cupons restritos */}
+                <div
+                  className="bg-white border rounded-2xl p-5"
+                  style={{ borderColor: 'var(--line)' }}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                    <div className="flex-1">
+                      <div className="mono text-[10px] text-ink-50 tracking-[0.1em] mb-1">
+                        É ASSOCIADO ACIA?
+                      </div>
+                      <p className="text-sm" style={{ color: 'var(--ink-70)' }}>
+                        Informe o CNPJ para aplicar cupons exclusivos de associado.
+                        <span className="text-xs block mt-1" style={{ color: 'var(--ink-50)' }}>
+                          Opcional — deixe em branco se usar um cupom público.
+                        </span>
+                      </p>
+                    </div>
+                    <div className="sm:w-72">
+                      <input
+                        type="text"
+                        value={cnpj}
+                        onChange={(e) => handleCnpjChange(e.target.value)}
+                        placeholder="00.000.000/0000-00"
+                        className="w-full"
+                        style={{
+                          ...inputStyle,
+                          borderColor:
+                            cnpjRequired && !cnpj
+                              ? 'var(--laranja)'
+                              : 'var(--line)',
+                        }}
+                      />
+                      {cnpjLoading && (
+                        <p
+                          className="mt-1 text-[11px]"
+                          style={{ color: 'var(--azul)' }}
+                        >
+                          Buscando empresa...
+                        </p>
+                      )}
+                      {!cnpjLoading && cnpjCompanyName && (
+                        <p
+                          className="mt-1 text-[11px]"
+                          style={{ color: 'var(--verde-600)' }}
+                        >
+                          {cnpjCompanyName}
+                        </p>
+                      )}
+                      {!cnpjLoading && cnpjError && (
+                        <p
+                          className="mt-1 text-[11px]"
+                          style={{ color: '#dc2626' }}
+                        >
+                          {cnpjError}
+                        </p>
+                      )}
+                      {cnpjRequired && !cnpj && !cnpjLoading && !cnpjError && (
+                        <p
+                          className="mt-1 text-[11px]"
+                          style={{ color: '#b85d00' }}
+                        >
+                          Cupom aplicado exige CNPJ de associado.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <Link href="/" className="btn btn-ghost">
                     <Plus size={16} />
@@ -948,26 +1106,34 @@ function CarrinhoPageInner() {
                             className="text-xs mb-3"
                             style={{ color: '#b85d00' }}
                           >
-                            Você aplicou um cupom exclusivo para empresas
-                            associadas. Informe o CNPJ da empresa para validar.
+                            Você aplicou um cupom exclusivo de associado. Informe o CNPJ para validar.
                           </p>
                           <Field label="CNPJ da empresa associada" required>
                             <input
                               type="text"
                               value={cnpj}
-                              onChange={(e) => setCnpj(e.target.value)}
+                              onChange={(e) => handleCnpjChange(e.target.value)}
                               placeholder="00.000.000/0000-00"
                               style={inputStyle}
                               autoFocus
                             />
                           </Field>
-                          <p
-                            className="mt-2 text-[11px]"
-                            style={{ color: 'var(--ink-50)' }}
-                          >
-                            Após preencher, clique em <strong>OK</strong> no
-                            cupom novamente.
-                          </p>
+                          {cnpjLoading && (
+                            <p
+                              className="mt-2 text-[11px]"
+                              style={{ color: 'var(--azul)' }}
+                            >
+                              Buscando empresa...
+                            </p>
+                          )}
+                          {!cnpjLoading && cnpjCompanyName && (
+                            <p
+                              className="mt-2 text-[11px]"
+                              style={{ color: 'var(--verde-600)' }}
+                            >
+                              {cnpjCompanyName} — cupom revalidado automaticamente.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -976,16 +1142,34 @@ function CarrinhoPageInner() {
                       ENDEREÇO
                     </div>
                     <div className="flex flex-col gap-5">
-                      <Field label="CEP" required error={errors.cep}>
-                        <input
-                          type="text"
-                          value={formData.cep}
-                          onChange={(e) => handleCEPChange(e.target.value)}
-                          onBlur={lookupCEP}
-                          placeholder="00000-000"
-                          style={inputStyle}
-                        />
-                      </Field>
+                      <div>
+                        <Field label="CEP" required error={errors.cep}>
+                          <input
+                            type="text"
+                            value={formData.cep}
+                            onChange={(e) => handleCEPChange(e.target.value)}
+                            onBlur={lookupCEP}
+                            placeholder="00000-000"
+                            style={inputStyle}
+                          />
+                        </Field>
+                        {cepLoading && (
+                          <p
+                            className="text-[11px] mt-1"
+                            style={{ color: 'var(--azul)' }}
+                          >
+                            Buscando endereço...
+                          </p>
+                        )}
+                        {!cepLoading && cepFilled && (
+                          <p
+                            className="text-[11px] mt-1"
+                            style={{ color: 'var(--verde-600)' }}
+                          >
+                            Endereço preenchido automaticamente
+                          </p>
+                        )}
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                         <div className="sm:col-span-2">
                           <Field label="Rua" required error={errors.rua}>

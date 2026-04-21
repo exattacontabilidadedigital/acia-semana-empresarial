@@ -58,32 +58,54 @@ export async function validateCouponWithAssociate(
     .maybeSingle()
 
   if (!coupon) {
-    return { ok: false, code: 'not_found', message: 'Cupom não encontrado.' }
+    return {
+      ok: false,
+      code: 'not_found',
+      message: 'Cupom inválido ou inexistente. Verifique o código digitado.',
+    }
   }
   if (!coupon.active) {
-    return { ok: false, code: 'inactive', message: 'Cupom inativo.' }
+    return {
+      ok: false,
+      code: 'inactive',
+      message: 'Este cupom foi desativado pela organização.',
+    }
   }
   if (coupon.event_id !== null && coupon.event_id !== params.eventId) {
     return {
       ok: false,
       code: 'wrong_event',
-      message: 'Cupom não vale para este evento.',
+      message: 'Este cupom não vale para este evento.',
     }
   }
 
   const now = new Date()
   if (coupon.valid_from && new Date(coupon.valid_from) > now) {
-    return { ok: false, code: 'not_started', message: 'Cupom ainda não está válido.' }
+    const starts = formatBrazilianDate(coupon.valid_from)
+    return {
+      ok: false,
+      code: 'not_started',
+      message: `Este cupom ainda não está válido. Válido a partir de ${starts}.`,
+    }
   }
   if (coupon.valid_until && new Date(coupon.valid_until) < now) {
-    return { ok: false, code: 'expired', message: 'Cupom expirou.' }
+    const expired = formatBrazilianDate(coupon.valid_until)
+    return {
+      ok: false,
+      code: 'expired',
+      message: `Este cupom expirou em ${expired}.`,
+    }
   }
   if (
     coupon.max_uses !== null &&
     coupon.max_uses !== undefined &&
     coupon.current_uses >= coupon.max_uses
   ) {
-    return { ok: false, code: 'limit_reached', message: 'Limite de usos atingido.' }
+    return {
+      ok: false,
+      code: 'limit_reached',
+      message: `Cupom esgotado — o limite de ${coupon.max_uses} usos já foi atingido.`,
+    }
   }
 
   const scope = (coupon.scope ?? 'public') as CouponScope
@@ -109,7 +131,14 @@ export async function validateCouponWithAssociate(
     return {
       ok: false,
       code: 'requires_cnpj',
-      message: 'Cupom exclusivo para associados. Informe o CNPJ.',
+      message: 'Este cupom é exclusivo para associados ACIA. Informe o CNPJ da empresa associada.',
+    }
+  }
+  if (cnpjDigits.length !== 14) {
+    return {
+      ok: false,
+      code: 'invalid_cnpj',
+      message: 'CNPJ incompleto — preencha os 14 dígitos.',
     }
   }
 
@@ -127,7 +156,8 @@ export async function validateCouponWithAssociate(
     return {
       ok: false,
       code: 'invalid_cnpj',
-      message: 'CNPJ não consta na base de associados ativos.',
+      message:
+        'Este CNPJ não está cadastrado como associado ativo da ACIA. Entre em contato com a associação para regularizar.',
     }
   }
 
@@ -144,7 +174,8 @@ export async function validateCouponWithAssociate(
       return {
         ok: false,
         code: 'not_in_associate_list',
-        message: 'Este cupom não está disponível para o seu CNPJ.',
+        message:
+          'Este cupom não está disponível para o seu CNPJ. Procure por um cupom específico da sua empresa.',
       }
     }
   }
@@ -165,7 +196,7 @@ export async function validateCouponWithAssociate(
       return {
         ok: false,
         code: 'limit_per_associate_reached',
-        message: 'Limite por associado atingido.',
+        message: `Sua empresa já utilizou o limite de ${coupon.max_uses_per_associate} uso(s) deste cupom.`,
       }
     }
   }
@@ -180,6 +211,18 @@ export async function validateCouponWithAssociate(
       scope,
     },
     associate_id: associate.id,
+  }
+}
+
+function formatBrazilianDate(value: string): string {
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(new Date(value))
+  } catch {
+    return value
   }
 }
 

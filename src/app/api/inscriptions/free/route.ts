@@ -10,6 +10,7 @@ const freeInscriptionSchema = z.object({
   email: z.string().email(),
   cpf: z.string().min(11),
   telefone: z.string().min(10),
+  cnpj: z.string().nullable().optional(),
   nome_empresa: z.string().nullable().optional(),
   cargo: z.string().nullable().optional(),
   cep: z.string().optional(),
@@ -22,7 +23,6 @@ const freeInscriptionSchema = z.object({
   quantity: z.number().int().min(1),
   is_half_price: z.boolean().optional().default(false),
   accepted_terms: z.literal(true),
-  coupon_code: z.string().optional(),
 })
 
 export async function POST(request: Request) {
@@ -72,6 +72,7 @@ export async function POST(request: Request) {
 
     const orderNumber = generateOrderNumber()
     const cpfClean = data.cpf.replace(/\D/g, '')
+    const cnpjDigits = (data.cnpj ?? '').replace(/\D/g, '') || null
 
     // Generate QR code and upload to Storage
     const qrCodeDataUrl = await generateAndUploadQRCode(orderNumber)
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
         nome: data.nome,
         email: data.email,
         cpf: cpfClean,
+        cnpj: cnpjDigits,
         telefone: data.telefone,
         nome_empresa: data.nome_empresa || null,
         cargo: data.cargo || null,
@@ -121,6 +123,7 @@ export async function POST(request: Request) {
         nome: data.nome,
         email: data.email,
         telefone: data.telefone,
+        cnpj: cnpjDigits,
         nome_empresa: data.nome_empresa || null,
         cargo: data.cargo || null,
         cep: data.cep || null,

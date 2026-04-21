@@ -319,6 +319,7 @@ export async function POST(request: Request) {
         nome: data.nome,
         email: data.email,
         telefone: data.telefone.replace(/\D/g, ''),
+        cnpj: cnpjDigits,
         nome_empresa: data.nome_empresa || null,
         cargo: data.cargo || null,
         cep: data.cep || null,

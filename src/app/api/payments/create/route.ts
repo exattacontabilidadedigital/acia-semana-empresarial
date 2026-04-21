@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createCustomer, createPayment } from '@/lib/asaas'
 import { generateOrderNumber } from '@/lib/utils'
+import { validateCouponWithAssociate, applyCouponDiscount } from '@/lib/coupons'
 
 const createPaymentSchema = z.object({
   event_id: z.number().int(),
@@ -10,6 +11,7 @@ const createPaymentSchema = z.object({
   email: z.string().email(),
   cpf: z.string().min(11),
   telefone: z.string().min(10),
+  cnpj: z.string().nullable().optional(),
   nome_empresa: z.string().nullable().optional(),
   cargo: z.string().nullable().optional(),
   cep: z.string().optional(),
@@ -69,49 +71,40 @@ export async function POST(request: Request) {
     const unitPrice = data.is_half_price ? event.price / 2 : event.price
     let totalAmount = unitPrice * data.quantity
     let couponId: number | null = null
+    let associateId: string | null = null
+    const cnpjDigits = (data.cnpj ?? '').replace(/\D/g, '') || null
 
-    // Validate coupon if provided
+    // Validate coupon if provided (usa helper central — suporta escopo de associado)
     if (data.coupon_code) {
-      const { data: coupon } = await supabase
+      const validation = await validateCouponWithAssociate(supabase, {
+        code: data.coupon_code,
+        eventId: data.event_id,
+        cnpj: cnpjDigits,
+      })
+
+      if (!validation.ok) {
+        return NextResponse.json(
+          { error: validation.message, error_code: validation.code },
+          { status: 400 }
+        )
+      }
+
+      totalAmount = applyCouponDiscount(totalAmount, validation.coupon, data.quantity)
+      couponId = validation.coupon.id
+      associateId = validation.associate_id
+
+      // Increment coupon usage (read-modify-write — OK p/ baixo volume)
+      const { data: c } = await supabase
         .from('coupons')
-        .select('*')
-        .eq('code', data.coupon_code.toUpperCase())
-        .eq('active', true)
+        .select('current_uses')
+        .eq('id', couponId)
         .single()
-
-      if (!coupon) {
-        return NextResponse.json({ error: 'Cupom inválido' }, { status: 400 })
+      if (c) {
+        await supabase
+          .from('coupons')
+          .update({ current_uses: (c.current_uses ?? 0) + 1 })
+          .eq('id', couponId)
       }
-
-      if (coupon.event_id && coupon.event_id !== data.event_id) {
-        return NextResponse.json({ error: 'Cupom não válido para este evento' }, { status: 400 })
-      }
-
-      if (coupon.max_uses && coupon.current_uses >= coupon.max_uses) {
-        return NextResponse.json({ error: 'Cupom esgotado' }, { status: 400 })
-      }
-
-      const now = new Date()
-      if (coupon.valid_from && new Date(coupon.valid_from) > now) {
-        return NextResponse.json({ error: 'Cupom ainda não está válido' }, { status: 400 })
-      }
-      if (coupon.valid_until && new Date(coupon.valid_until) < now) {
-        return NextResponse.json({ error: 'Cupom expirado' }, { status: 400 })
-      }
-
-      if (coupon.discount_type === 'percentage') {
-        totalAmount = totalAmount * (1 - coupon.discount_value / 100)
-      } else {
-        totalAmount = Math.max(0, totalAmount - coupon.discount_value * data.quantity)
-      }
-
-      couponId = coupon.id
-
-      // Increment coupon usage
-      await supabase
-        .from('coupons')
-        .update({ current_uses: coupon.current_uses + 1 })
-        .eq('id', coupon.id)
     }
 
     const orderNumber = generateOrderNumber()
@@ -163,6 +156,7 @@ export async function POST(request: Request) {
         nome: data.nome,
         email: data.email,
         cpf: cpfClean,
+        cnpj: cnpjDigits,
         telefone: data.telefone,
         nome_empresa: data.nome_empresa || null,
         cargo: data.cargo || null,
@@ -182,6 +176,7 @@ export async function POST(request: Request) {
         payment_status: 'pending',
         asaas_customer_id: customer.id,
         coupon_id: couponId,
+        associate_id: associateId,
         accepted_terms: data.accepted_terms,
       })
 
@@ -197,6 +192,7 @@ export async function POST(request: Request) {
         nome: data.nome,
         email: data.email,
         telefone: data.telefone.replace(/\D/g, ''),
+        cnpj: cnpjDigits,
         nome_empresa: data.nome_empresa || null,
         cargo: data.cargo || null,
         cep: data.cep || null,

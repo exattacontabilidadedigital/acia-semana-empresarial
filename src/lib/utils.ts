@@ -30,6 +30,36 @@ export function formatCPF(cpf: string): string {
   return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
 }
 
+export function formatCNPJ(cnpj: string): string {
+  const digits = cnpj.replace(/\D/g, '').slice(0, 14)
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+}
+
+// Valida dígitos verificadores de CNPJ (módulo 11).
+// Rejeita sequências repetidas como 11111111111111, que passam na soma mas são inválidas.
+export function isValidCNPJ(cnpj: string): boolean {
+  const digits = cnpj.replace(/\D/g, '')
+  if (digits.length !== 14) return false
+  if (/^(\d)\1{13}$/.test(digits)) return false
+
+  const calc = (len: number): number => {
+    const weights =
+      len === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    let sum = 0
+    for (let i = 0; i < len; i++) sum += Number(digits[i]) * weights[i]
+    const mod = sum % 11
+    return mod < 2 ? 0 : 11 - mod
+  }
+
+  return calc(12) === Number(digits[12]) && calc(13) === Number(digits[13])
+}
+
 export function formatPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   if (digits.length === 11) {
