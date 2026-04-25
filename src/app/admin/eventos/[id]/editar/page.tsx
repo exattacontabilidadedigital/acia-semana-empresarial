@@ -17,7 +17,8 @@ const categories = [
 ]
 
 export default function EditarEventoPage() {
-  const { id } = useParams<{ id: string }>()
+  const params = useParams<{ id: string }>()
+  const id = params?.id ?? ''
   const router = useRouter()
   const supabase = createClient()
 

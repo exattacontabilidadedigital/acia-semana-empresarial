@@ -31,7 +31,7 @@ function LoginForm() {
         return;
       }
 
-      const redirect = searchParams.get('redirect') || '/admin/dashboard';
+      const redirect = searchParams?.get('redirect') || '/admin/dashboard';
       router.push(redirect);
     } catch {
       setError('Ocorreu um erro inesperado. Tente novamente.');

@@ -75,49 +75,98 @@ export async function GET(request: Request) {
     ticketsByInscription.set(ticket.inscription_id, existing)
   }
 
-  // QR code do grupo (primeiro disponível — todos devem ser iguais no grupo)
-  const qrCode = validInscriptions.find((i) => !!i.qr_code)?.qr_code || ''
+  // Agrupa por participante (CPF)
+  interface ParticipantBlock {
+    cpf: string
+    nome: string
+    email: string
+    telefone: string
+    qrCode: string
+    inscriptions: typeof validInscriptions
+  }
+  const byParticipant = new Map<string, ParticipantBlock>()
+  for (const ins of validInscriptions) {
+    const key = ins.cpf || ins.email || `id-${ins.id}`
+    const existing = byParticipant.get(key)
+    if (existing) {
+      existing.inscriptions.push(ins)
+      if (!existing.qrCode && ins.qr_code) existing.qrCode = ins.qr_code
+    } else {
+      byParticipant.set(key, {
+        cpf: ins.cpf,
+        nome: ins.nome,
+        email: ins.email,
+        telefone: ins.telefone,
+        qrCode: ins.qr_code || '',
+        inscriptions: [ins],
+      })
+    }
+  }
+  const participantBlocks = Array.from(byParticipant.values())
+  const isMulti = participantBlocks.length > 1
 
   // Totais
-  const totalEvents = validInscriptions.length
   const totalTickets = (allTickets ?? []).length
   const totalPaid = validInscriptions.reduce(
     (sum, i) => sum + Number(i.total_amount || 0),
     0,
   )
 
-  // Participante principal (todos no grupo tendem a ter o mesmo comprador)
-  const first = validInscriptions[0]
-  const cpfFormatted =
-    first.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') || ''
+  function buildEventsHtml(inscs: typeof validInscriptions): string {
+    return inscs
+      .map((insc) => {
+        const event = eventMap.get(insc.event_id)
+        const tickets = ticketsByInscription.get(insc.id) ?? []
+        return `
+        <div class="event-card">
+          <div class="event-title">${event?.title || 'Evento'}</div>
+          <div class="event-meta">
+            <span><b>Data:</b> ${event?.event_date ? formatDate(event.event_date) : '—'}</span>
+            <span><b>Horário:</b> ${formatTime(event?.start_time)}${event?.end_time ? ' — ' + formatTime(event.end_time) : ''}</span>
+            ${event?.location ? `<span><b>Local:</b> ${event.location}</span>` : ''}
+          </div>
+          <div class="event-tickets">
+            ${tickets.length} ingresso${tickets.length === 1 ? '' : 's'}
+            ${insc.is_half_price ? '· meia-entrada' : ''}
+          </div>
+          ${tickets.length > 0
+            ? `<ul class="ticket-list">${tickets
+                .map(
+                  (t) =>
+                    `<li><span class="tn">${t.participant_name}</span> <span class="tid">${t.id.slice(0, 8)}</span></li>`,
+                )
+                .join('')}</ul>`
+            : ''}
+          <div class="event-order">Pedido: <b>${insc.order_number}</b></div>
+        </div>
+      `
+      })
+      .join('')
+  }
 
-  const eventsHtml = validInscriptions
-    .map((insc) => {
-      const event = eventMap.get(insc.event_id)
-      const tickets = ticketsByInscription.get(insc.id) ?? []
+  const participantsHtml = participantBlocks
+    .map((p, idx) => {
+      const cpfFormatted =
+        p.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') || ''
       return `
-      <div class="event-card">
-        <div class="event-title">${event?.title || 'Evento'}</div>
-        <div class="event-meta">
-          <span><b>Data:</b> ${event?.event_date ? formatDate(event.event_date) : '—'}</span>
-          <span><b>Horário:</b> ${formatTime(event?.start_time)}${event?.end_time ? ' — ' + formatTime(event.end_time) : ''}</span>
-          ${event?.location ? `<span><b>Local:</b> ${event.location}</span>` : ''}
-        </div>
-        <div class="event-tickets">
-          ${tickets.length} ingresso${tickets.length === 1 ? '' : 's'}
-          ${insc.is_half_price ? '· meia-entrada' : ''}
-        </div>
-        ${tickets.length > 0
-          ? `<ul class="ticket-list">${tickets
-              .map(
-                (t) =>
-                  `<li><span class="tn">${t.participant_name}</span> <span class="tid">${t.id.slice(0, 8)}</span></li>`,
-              )
-              .join('')}</ul>`
-          : ''}
-        <div class="event-order">Pedido: <b>${insc.order_number}</b></div>
+      ${idx > 0 ? '<div class="participant-divider"></div>' : ''}
+      ${isMulti ? `<h3 class="participant-title">Participante ${idx + 1}: ${p.nome}</h3>` : ''}
+      <div class="buyer">
+        <div><div class="l">Participante</div><div class="v">${p.nome}</div></div>
+        <div><div class="l">E-mail</div><div class="v">${p.email}</div></div>
+        <div><div class="l">CPF</div><div class="v">${cpfFormatted}</div></div>
+        <div><div class="l">Telefone</div><div class="v">${p.telefone || '—'}</div></div>
       </div>
-    `
+      ${p.qrCode
+        ? `<div class="qr-wrap">
+            <img src="${p.qrCode}" alt="QR Code de ${p.nome}" />
+            <div class="qr-label">QR Code de ${p.nome}</div>
+            <div class="qr-hint">Válido para todos os eventos deste participante</div>
+          </div>`
+        : ''}
+      <h3>Eventos${isMulti ? ` de ${p.nome.split(' ')[0]}` : ' inclusos'}</h3>
+      ${buildEventsHtml(p.inscriptions)}
+      `
     })
     .join('')
 
@@ -305,6 +354,19 @@ export async function GET(request: Request) {
   .event-order { font-size: 10px; color: #888; margin-top: 6px; }
   .event-order b { color: #2D2D2D; }
 
+  .participant-divider {
+    border-top: 2px dashed #d4d4d8;
+    margin: 24px 0 18px;
+  }
+  .participant-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #5B2D8E;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
   .footer {
     text-align: center;
     margin-top: 18px;
@@ -326,17 +388,10 @@ export async function GET(request: Request) {
   <div class="body">
     <span class="badge">INSCRIÇÃO CONFIRMADA</span>
 
-    <div class="buyer">
-      <div><div class="l">Participante</div><div class="v">${first.nome}</div></div>
-      <div><div class="l">E-mail</div><div class="v">${first.email}</div></div>
-      <div><div class="l">CPF</div><div class="v">${cpfFormatted}</div></div>
-      <div><div class="l">Telefone</div><div class="v">${first.telefone || '—'}</div></div>
-    </div>
-
     <div class="summary">
       <div class="summary-tile">
-        <div class="n">${totalEvents}</div>
-        <div class="l">Eventos</div>
+        <div class="n">${participantBlocks.length}</div>
+        <div class="l">Participante${participantBlocks.length === 1 ? '' : 's'}</div>
       </div>
       <div class="summary-tile">
         <div class="n">${totalTickets}</div>
@@ -348,26 +403,17 @@ export async function GET(request: Request) {
       </div>
     </div>
 
-    ${qrCode
-      ? `<div class="qr-wrap">
-          <img src="${qrCode}" alt="QR Code do grupo" />
-          <div class="qr-label">Seu QR Code de acesso</div>
-          <div class="qr-hint">Válido para todos os eventos deste comprovante</div>
-        </div>`
-      : ''}
-
     <div class="instructions">
       <h4>Como usar seu ingresso</h4>
       <ol>
-        <li>Apresente este QR Code no check-in de cada evento — impresso ou na tela do celular.</li>
+        <li>${isMulti ? 'Cada participante apresenta seu próprio QR Code no check-in dos eventos.' : 'Apresente este QR Code no check-in de cada evento — impresso ou na tela do celular.'}</li>
         <li>Chegue com antecedência mínima de 30 minutos. Leve um documento com foto.</li>
         <li>Cada QR Code pode ser validado 1 vez por evento. Guarde este comprovante até o fim do evento.</li>
         <li>Em caso de dúvidas, fale com a organização: (99) 98833-4432 ou acia.aca@gmail.com.</li>
       </ol>
     </div>
 
-    <h3>Eventos inclusos</h3>
-    ${eventsHtml}
+    ${participantsHtml}
 
     <div class="footer">
       <b>Semana Empresarial de Açailândia 2026</b><br>

@@ -688,7 +688,7 @@ function toolGetEditionInfo() {
       site_urls: {
         home: SITE_URL,
         events: `${SITE_URL}/inscricoes`,
-        my_inscriptions: `${SITE_URL}/carrinho?aba=confirmadas`,
+        my_inscriptions: `${SITE_URL}/programacao?aba=confirmadas`,
         about: `${SITE_URL}/sobre`,
         editions: `${SITE_URL}/edicoes`,
         partners: `${SITE_URL}/parceiros`,

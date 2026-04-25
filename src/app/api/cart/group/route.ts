@@ -50,6 +50,7 @@ export async function GET(request: Request) {
     order_number: i.order_number,
     nome: i.nome,
     email: i.email,
+    cpf: i.cpf,
     quantity: i.quantity,
     is_half_price: i.is_half_price,
     total_amount: i.total_amount,

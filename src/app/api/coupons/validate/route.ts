@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { validateCouponWithAssociate } from '@/lib/coupons'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 const validateCouponSchema = z.object({
   code: z.string().min(1),
@@ -12,6 +13,10 @@ const validateCouponSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    // Rate limit mais apertado contra brute force de cupons
+    const limited = enforceRateLimit(request, { key: 'coupon-validate', limit: 15, windowSeconds: 60 })
+    if (limited) return limited
+
     const body = await request.json()
     const data = validateCouponSchema.parse(body)
     const eventId = typeof data.event_id === 'number' ? data.event_id : Number(data.event_id)

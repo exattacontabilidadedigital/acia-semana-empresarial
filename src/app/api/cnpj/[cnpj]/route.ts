@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server'
 import { isValidCNPJ } from '@/lib/utils'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 // BrasilAPI: https://brasilapi.com.br/api/cnpj/v1/{cnpj}
 // Pública, sem auth, sem rate limit estrito.
 const BRASIL_API_URL = 'https://brasilapi.com.br/api/cnpj/v1/'
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { cnpj: string } }
 ) {
+  const limited = enforceRateLimit(request, { key: 'cnpj-lookup', limit: 20, windowSeconds: 60 })
+  if (limited) return limited
+
   const digits = (params.cnpj ?? '').replace(/\D/g, '')
 
   if (digits.length !== 14) {

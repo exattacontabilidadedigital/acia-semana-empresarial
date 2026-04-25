@@ -45,7 +45,7 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
 
   const handleAddAndGo = () => {
     handleAdd()
-    router.push('/carrinho')
+    router.push('/programacao')
   }
 
   // ========== JÁ NA PROGRAMAÇÃO ==========
@@ -91,7 +91,7 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
         </div>
 
         <Link
-          href="/carrinho"
+          href="/programacao"
           className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-orange text-white font-bold text-sm hover:bg-orange-dark transition-colors"
         >
           <CalendarCheck2 size={18} />
@@ -203,7 +203,7 @@ export default function EventPageActions({ event, availableSpots, halfPriceAvail
 
       {cartCount > 0 && (
         <Link
-          href="/carrinho"
+          href="/programacao"
           className="block text-center text-xs text-purple font-semibold mt-3 hover:underline"
         >
           Você tem {cartCount} {cartCount === 1 ? 'evento' : 'eventos'} na sua programação

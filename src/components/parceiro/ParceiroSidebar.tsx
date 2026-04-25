@@ -33,7 +33,7 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 export default function ParceiroSidebar({ isOwner }: { isOwner: boolean }) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ''
   const [open, setOpen] = useState(false)
 
   useEffect(() => {

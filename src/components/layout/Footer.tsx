@@ -122,7 +122,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/carrinho?aba=confirmadas" className="hover:text-white transition-colors">
+                <Link href="/programacao?aba=confirmadas" className="hover:text-white transition-colors">
                   Minhas inscrições
                 </Link>
               </li>
@@ -132,7 +132,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/carrinho?aba=confirmadas" className="hover:text-white transition-colors">
+                <Link href="/programacao?aba=confirmadas" className="hover:text-white transition-colors">
                   Emissão de certificado
                 </Link>
               </li>

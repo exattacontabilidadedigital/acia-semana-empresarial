@@ -24,7 +24,7 @@ function isActive(pathname: string, href: string) {
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { cartCount } = useCart()
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ''
 
   return (
     <nav
@@ -61,7 +61,7 @@ export default function Header() {
 
         <div className="hidden lg:flex items-center gap-2">
           <Link
-            href="/carrinho"
+            href="/programacao"
             className="nav-link relative inline-flex items-center"
             aria-label="Minha programação"
             title="Minha programação"
@@ -74,7 +74,7 @@ export default function Header() {
             )}
           </Link>
           <Link
-            href="/carrinho?aba=confirmadas"
+            href="/programacao?aba=confirmadas"
             className="nav-link"
           >
             Minhas inscrições
@@ -91,7 +91,7 @@ export default function Header() {
 
         <div className="lg:hidden flex items-center gap-3">
           <Link
-            href="/carrinho"
+            href="/programacao"
             className="relative text-ink"
             aria-label="Minha programação"
             title="Minha programação"
@@ -127,7 +127,7 @@ export default function Header() {
               </Link>
             ))}
             <Link
-              href="/carrinho?aba=confirmadas"
+              href="/programacao?aba=confirmadas"
               className="nav-link text-left"
               onClick={() => setMobileOpen(false)}
             >

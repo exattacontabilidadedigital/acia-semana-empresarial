@@ -385,6 +385,46 @@
 ::-webkit-scrollbar-thumb { background: #d0d1c8; border-radius: 10px; }
 ::-webkit-scrollbar-track { background: var(--paper); }
 
+/* Acessibilidade: foco visível em elementos interativos via teclado.
+   :focus-visible só mostra outline em foco via teclado, evitando anel após clique de mouse. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+}
+
+/* Skip link para usuários de leitor de tela / teclado */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--ink);
+  color: white;
+  padding: 8px 16px;
+  z-index: 1000;
+  border-radius: 0 0 8px 0;
+  text-decoration: none;
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+/* Para usuários que preferem reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @media print {
   .no-print { display: none !important; }
   body { background: white !important; }

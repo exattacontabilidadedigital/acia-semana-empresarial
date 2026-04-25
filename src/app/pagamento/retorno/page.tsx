@@ -9,8 +9,8 @@ import Link from 'next/link'
 function RetornoContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const orderNumber = searchParams.get('order')
-  const group = searchParams.get('group')
+  const orderNumber = searchParams?.get('order') ?? null
+  const group = searchParams?.get('group') ?? null
 
   const [status, setStatus] = useState<'loading' | 'confirmed' | 'pending' | 'error'>('loading')
   const [attempts, setAttempts] = useState(0)
