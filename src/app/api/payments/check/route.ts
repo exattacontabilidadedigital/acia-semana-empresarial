@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPaymentStatus } from '@/lib/asaas'
-import { generateAndUploadQRCode } from '@/lib/qrcode'
+import { confirmInscriptionAtomic } from '@/lib/inscriptions'
 
 async function confirmInscriptions(supabase: ReturnType<typeof createAdminClient>, paymentId: string) {
   const { data: pendingInscriptions } = await supabase
@@ -12,34 +12,19 @@ async function confirmInscriptions(supabase: ReturnType<typeof createAdminClient
 
   if (!pendingInscriptions || pendingInscriptions.length === 0) return
 
+  // QR já existe (gerado no checkout). Confirmação atômica: se webhook + polling
+  // chegarem simultaneamente, apenas um efetivamente confirma cada inscription.
+  let confirmed = 0
   for (const inscription of pendingInscriptions) {
-    const qrCodeUrl = await generateAndUploadQRCode(inscription.order_number!)
-
-    await supabase
-      .from('inscriptions')
-      .update({ payment_status: 'confirmed', qr_code: qrCodeUrl })
-      .eq('id', inscription.id)
-
-    const tickets = []
-    for (let i = 0; i < (inscription.quantity || 1); i++) {
-      tickets.push({
-        inscription_id: inscription.id,
-        event_id: inscription.event_id,
-        participant_name: inscription.nome,
-        status: 'active',
-      })
-    }
-    await supabase.from('tickets').insert(tickets)
-
-    // Email async
-    fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/email/confirmation`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_number: inscription.order_number }),
-    }).catch(() => {})
+    const ok = await confirmInscriptionAtomic(supabase, inscription)
+    if (ok) confirmed++
   }
 
-  console.log(`[CHECK] ${pendingInscriptions.length} inscrição(ões) confirmada(s) via polling para payment ${paymentId}`)
+  if (confirmed > 0) {
+    console.log(
+      `[CHECK] ${confirmed} inscrição(ões) confirmada(s) via polling para payment ${paymentId}`,
+    )
+  }
 }
 
 export async function GET(request: Request) {

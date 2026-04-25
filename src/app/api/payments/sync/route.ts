@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPaymentStatus } from '@/lib/asaas'
-import { generateAndUploadQRCode } from '@/lib/qrcode'
+import { confirmInscriptionAtomic } from '@/lib/inscriptions'
 
 export async function POST(request: Request) {
   try {
@@ -49,52 +49,12 @@ export async function POST(request: Request) {
       })
     }
 
-    // Gerar 1 QR code por grupo (ou por order se não tem grupo)
-    const groupId = pendingInscriptions[0].purchase_group
-    const qrCodeUrl = groupId
-      ? await generateAndUploadQRCode(groupId, 'group')
-      : await generateAndUploadQRCode(pendingInscriptions[0].order_number!)
-
-    // Confirmar todas as inscrições pendentes
+    // Confirmação atômica: se webhook + sync rodam simultaneamente, só um confirma cada
+    // inscription. O helper já cria tickets e dispara e-mail apenas quando muda o status.
     let confirmed = 0
     for (const inscription of pendingInscriptions) {
-
-      // Atualizar inscrição
-      const { error: updateError } = await supabase
-        .from('inscriptions')
-        .update({ payment_status: 'confirmed', qr_code: qrCodeUrl })
-        .eq('id', inscription.id)
-
-      if (updateError) {
-        console.error(`[SYNC] Erro ao atualizar inscrição ${inscription.id}:`, updateError)
-        continue
-      }
-
-      // Criar tickets
-      const tickets = []
-      for (let i = 0; i < (inscription.quantity || 1); i++) {
-        tickets.push({
-          inscription_id: inscription.id,
-          event_id: inscription.event_id,
-          participant_name: inscription.nome,
-          status: 'active',
-        })
-      }
-
-      const { error: ticketError } = await supabase.from('tickets').insert(tickets)
-      if (ticketError) {
-        console.error(`[SYNC] Erro ao criar tickets para inscrição ${inscription.id}:`, ticketError)
-      }
-
-      // Enviar email de confirmação
-      fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/email/confirmation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_number: inscription.order_number }),
-      }).catch((e) => console.error('[SYNC] Erro ao enviar email:', e))
-
-      confirmed++
-      console.log(`[SYNC] Inscrição ${inscription.order_number} confirmada - ${tickets.length} ticket(s)`)
+      const ok = await confirmInscriptionAtomic(supabase, inscription)
+      if (ok) confirmed++
     }
 
     return NextResponse.json({
