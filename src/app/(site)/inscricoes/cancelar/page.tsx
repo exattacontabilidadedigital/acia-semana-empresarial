@@ -7,8 +7,8 @@ import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 function CancelarContent() {
   const searchParams = useSearchParams()
-  const order = searchParams.get('order')
-  const cpf = searchParams.get('cpf')
+  const order = searchParams?.get('order') ?? null
+  const cpf = searchParams?.get('cpf') ?? null
 
   const [status, setStatus] = useState<'confirm' | 'loading' | 'success' | 'error'>('confirm')
   const [errorMsg, setErrorMsg] = useState('')

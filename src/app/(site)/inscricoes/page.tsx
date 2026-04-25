@@ -1,6 +1,6 @@
 import { Calendar, MousePointerClick, CalendarCheck2, CreditCard, FileDown } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import InscricaoEventCard from '@/components/eventos/InscricaoEventCard'
+import InscricoesListClient from '@/components/eventos/InscricoesListClient'
 import ProgramacaoButton from '@/components/carrinho/ProgramacaoButton'
 import type { Event } from '@/types/database'
 
@@ -200,27 +200,7 @@ export default async function InscricoesPage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {events.map((event) => {
-                const availableSpots = Math.max(
-                  0,
-                  event.capacity - event.inscriptionsCount,
-                )
-                const halfPriceAvailable = Math.max(
-                  0,
-                  (event.half_price || 0) - event.halfPriceUsed,
-                )
-
-                return (
-                  <InscricaoEventCard
-                    key={event.id}
-                    event={event}
-                    availableSpots={availableSpots}
-                    halfPriceAvailable={halfPriceAvailable}
-                  />
-                )
-              })}
-            </div>
+            <InscricoesListClient events={events} />
           )}
 
           {/* Footer CTA */}

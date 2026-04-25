@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 export async function GET(request: Request) {
+  const limited = enforceRateLimit(request, { key: 'inscriptions-lookup', limit: 30, windowSeconds: 60 })
+  if (limited) return limited
+
   const { searchParams } = new URL(request.url)
   const cpf = searchParams.get('cpf')?.replace(/\D/g, '')
 

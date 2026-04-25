@@ -38,3 +38,9 @@ export const inscriptionPersonalSchema = z.object({
 })
 
 export type InscriptionPersonalData = z.infer<typeof inscriptionPersonalSchema>
+
+export const participantSchema = inscriptionPersonalSchema.extend({
+  event_ids: z.array(z.number().int()).optional(),
+})
+
+export type Participant = z.infer<typeof participantSchema>

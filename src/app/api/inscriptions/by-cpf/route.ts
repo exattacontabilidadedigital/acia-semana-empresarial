@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   try {
+    const limited = enforceRateLimit(request, {
+      key: 'inscriptions-by-cpf',
+      limit: 30,
+      windowSeconds: 60,
+    })
+    if (limited) return limited
+
     const cpf = request.nextUrl.searchParams.get('cpf')?.replace(/\D/g, '')
 
     if (!cpf || cpf.length !== 11) {
@@ -29,7 +37,9 @@ export async function GET(request: NextRequest) {
           title,
           event_date,
           start_time,
-          location
+          end_time,
+          location,
+          description
         )
       `)
       .eq('cpf', cpf)

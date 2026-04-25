@@ -25,7 +25,7 @@ export default function ProgramacaoButton({
 
   return (
     <Link
-      href="/carrinho"
+      href="/programacao"
       className={`btn ${variant === 'cyan' ? 'btn-cyan' : 'btn-primary'} ${
         size === 'lg' ? 'btn-lg' : ''
       } programacao-cta ${hasItems ? 'is-active' : ''} inline-flex items-center gap-2`}
