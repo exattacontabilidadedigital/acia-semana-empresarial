@@ -1,7 +1,8 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
-import { ArrowRight, Check } from 'lucide-react'
+import { FormEvent, useState, useTransition } from 'react'
+import { ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react'
+import { submitSponsorshipLeadAction } from './actions'
 
 type Tier = {
   id: string
@@ -189,14 +190,36 @@ export default function ParceirosPage() {
     mensagem: '',
   })
   const [sent, setSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
 
   const tier = TIERS.find((t) => t.id === activeTier)!
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    setSent(true)
-    setTimeout(() => setSent(false), 4000)
-    setForm({ nome: '', empresa: '', email: '', cota: 'diamante', mensagem: '' })
+    setError(null)
+    startTransition(async () => {
+      const result = await submitSponsorshipLeadAction({
+        nome: form.nome,
+        empresa: form.empresa,
+        email: form.email,
+        cota: form.cota,
+        mensagem: form.mensagem,
+      })
+      if (result.ok) {
+        setSent(true)
+        setForm({
+          nome: '',
+          empresa: '',
+          email: '',
+          cota: 'diamante',
+          mensagem: '',
+        })
+        setTimeout(() => setSent(false), 6000)
+      } else {
+        setError(result.error)
+      }
+    })
   }
 
   return (
@@ -527,12 +550,37 @@ export default function ParceirosPage() {
                   onChange={(v) => setForm({ ...form, mensagem: v })}
                 />
               </div>
+              {error && (
+                <div
+                  className="mb-4 rounded-lg px-3 py-2 text-sm flex items-start gap-2"
+                  style={{
+                    background: '#fff1f2',
+                    color: '#b91c1c',
+                    border: '1px solid #fecdd3',
+                  }}
+                >
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
               <button
                 type="submit"
+                disabled={pending || sent}
                 className="btn btn-orange btn-lg w-full justify-center"
+                style={
+                  pending || sent
+                    ? { opacity: 0.7, pointerEvents: 'none' }
+                    : undefined
+                }
               >
-                {sent ? (
-                  'Recebido! Retornaremos em até 48h'
+                {pending ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> Enviando...
+                  </>
+                ) : sent ? (
+                  <>
+                    <Check size={14} /> Recebido! Retornaremos em até 48h
+                  </>
                 ) : (
                   <>
                     Enviar proposta <ArrowRight size={14} />
