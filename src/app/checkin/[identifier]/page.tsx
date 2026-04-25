@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import {
   CheckCircle,
   XCircle,
@@ -68,7 +68,9 @@ function formatTime(time: string): string {
 
 export default function CheckinPage() {
   const params = useParams()
-  const identifier = params.identifier as string
+  const searchParams = useSearchParams()
+  const identifier = (params?.identifier ?? '') as string
+  const participantCpf = searchParams?.get('p') ?? null
 
   const [data, setData] = useState<CheckinData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -81,8 +83,14 @@ export default function CheckinPage() {
       try {
         // Detectar se é grupo (PG-) ou order (SE-)
         const isGroup = identifier.startsWith('PG-')
-        const query = isGroup ? `group=${identifier}` : `order=${identifier}`
-        const res = await fetch(`/api/checkin/validate?${query}`)
+        const params = new URLSearchParams()
+        if (isGroup) {
+          params.set('group', identifier)
+          if (participantCpf) params.set('cpf', participantCpf)
+        } else {
+          params.set('order', identifier)
+        }
+        const res = await fetch(`/api/checkin/validate?${params.toString()}`)
         const json = await res.json()
 
         if (!res.ok || !json.success) {
@@ -98,7 +106,7 @@ export default function CheckinPage() {
       }
     }
     fetchData()
-  }, [identifier])
+  }, [identifier, participantCpf])
 
   async function handleCheckin(ticketId: string) {
     setCheckingIn(ticketId)

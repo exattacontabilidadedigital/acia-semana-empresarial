@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const order = searchParams.get('order')
   const group = searchParams.get('group')
+  const participantCpf = searchParams.get('cpf')?.replace(/\D/g, '') || null
 
   if (!order && !group) {
     return NextResponse.json({ error: 'order ou group obrigatório' }, { status: 400 })
@@ -21,16 +22,24 @@ export async function GET(request: Request) {
 
   // Busca por grupo (QR único para múltiplos eventos)
   if (group) {
-    const { data: inscriptions } = await supabase
+    let query = supabase
       .from('inscriptions')
       .select('id, order_number, nome, email, cpf, quantity, is_half_price, payment_status, event_id')
       .eq('purchase_group', group)
       .in('payment_status', ['confirmed', 'free'])
 
+    if (participantCpf) {
+      query = query.eq('cpf', participantCpf)
+    }
+
+    const { data: inscriptions } = await query
+
     if (!inscriptions || inscriptions.length === 0) {
       return NextResponse.json({
         success: false,
-        message: 'Nenhuma inscrição confirmada encontrada para este grupo',
+        message: participantCpf
+          ? 'Nenhuma inscrição confirmada para este participante neste grupo'
+          : 'Nenhuma inscrição confirmada encontrada para este grupo',
       }, { status: 404 })
     }
 
@@ -107,11 +116,12 @@ export async function GET(request: Request) {
     }, { status: 404 })
   }
 
-  // Se tem purchase_group, redirecionar para grupo
+  // Se tem purchase_group, redirecionar para grupo (filtrando pelo participante)
   if (inscription.purchase_group) {
-    return NextResponse.redirect(
-      new URL(`/api/checkin/validate?group=${inscription.purchase_group}`, request.url)
-    )
+    const url = new URL(`/api/checkin/validate`, request.url)
+    url.searchParams.set('group', inscription.purchase_group)
+    if (inscription.cpf) url.searchParams.set('cpf', inscription.cpf)
+    return NextResponse.redirect(url)
   }
 
   const { data: event } = await supabase
