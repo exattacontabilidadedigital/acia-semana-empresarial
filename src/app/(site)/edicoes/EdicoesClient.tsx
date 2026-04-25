@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowRight, ArrowUpRight, Download, Play } from 'lucide-react'
+import { parseVideoUrl } from '@/lib/video-url'
+import ModalPortal from '@/components/ui/ModalPortal'
 
 export type Edition = {
   year: number
@@ -24,30 +26,25 @@ export type Photo = {
   alt?: string | null
 }
 
-type Video = {
+export type Video = {
   id: string
   cap: string
   ed: string
   dur: string
   c: string
   feat?: boolean
+  url?: string | null
+  thumb?: string | null
 }
-
-const VIDEOS: Video[] = [
-  { id: 'v1', cap: 'Aftermovie · 5ª Edição', ed: '2025', dur: '2:14', c: 'var(--azul)', feat: true },
-  { id: 'v2', cap: 'Destaques · Rodada de Negócios', ed: '2025', dur: '1:08', c: 'var(--laranja)' },
-  { id: 'v3', cap: 'Talk Mulheres · Compilação', ed: '2025', dur: '3:42', c: 'var(--ciano)' },
-  { id: 'v4', cap: 'Aftermovie · 4ª Edição', ed: '2024', dur: '2:32', c: 'var(--verde)' },
-  { id: 'v5', cap: 'Mutirão de Crédito · Depoimentos', ed: '2024', dur: '4:10', c: 'var(--laranja)' },
-  { id: 'v6', cap: 'Aftermovie · 3ª Edição', ed: '2023', dur: '2:04', c: 'var(--azul)' },
-]
 
 export default function EdicoesClient({
   editions,
   photos,
+  videos,
 }: {
   editions: Edition[]
   photos: Photo[]
+  videos: Video[]
 }) {
   const safeEditions = editions.length > 0 ? editions : []
   const [active, setActive] = useState(Math.max(0, safeEditions.length - 1))
@@ -57,8 +54,23 @@ export default function EdicoesClient({
   const [mediaEd, setMediaEd] = useState('todas')
   const [lightbox, setLightbox] = useState<Photo | Video | null>(null)
 
+  // Trava o scroll da página enquanto o lightbox está aberto e fecha no Esc
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null)
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [lightbox])
+
   const filteredPhotos = photos.filter((x) => mediaEd === 'todas' || x.ed === mediaEd)
-  const filteredVideos = VIDEOS.filter((x) => mediaEd === 'todas' || x.ed === mediaEd)
+  const filteredVideos = videos.filter((x) => mediaEd === 'todas' || x.ed === mediaEd)
 
   // Builds dynamic editions list for filters
   const mediaEditions = ['todas', ...safeEditions.map((e) => String(e.year)).reverse()]
@@ -295,33 +307,51 @@ export default function EdicoesClient({
           >
             <div
               className="flex items-end justify-between gap-4"
-              style={{ height: 280 }}
+              style={{ height: 320 }}
             >
               {safeEditions.map((e, i) => {
                 const valStr = e.stats[0]?.[0] ?? '0'
                 const val = parseInt(valStr.replace(/\D/g, '')) || 0
-                const h = (val / max) * 100
+                // Calcula altura da barra em px (ao invés de %, que não funciona
+                // sem altura explícita no pai). Reserva 50px pra rótulos.
+                const BAR_MAX = 240
+                const h =
+                  val > 0 ? Math.max((val / max) * BAR_MAX, 6) : 0
                 return (
-                  <div
+                  <button
                     key={i}
-                    className="flex-1 flex flex-col items-center gap-3"
+                    type="button"
+                    onClick={() => setActive(i)}
+                    className="flex-1 flex flex-col items-center justify-end gap-2 h-full bg-transparent border-none cursor-pointer p-0"
+                    title={`${e.year} · ${e.t}`}
                   >
-                    <div className="text-xs font-semibold">{valStr}</div>
+                    <div
+                      className="text-xs font-semibold transition-colors"
+                      style={{
+                        color: active === i ? 'var(--ink)' : 'var(--ink-50)',
+                        minHeight: 16,
+                      }}
+                    >
+                      {val > 0 ? valStr : '—'}
+                    </div>
                     <div
                       className="w-4/5 transition-all"
                       style={{
-                        height: `${h}%`,
-                        background: active === i ? e.c : '#e6e7df',
+                        height: h,
+                        background: active === i ? e.c : 'var(--verde)',
                         borderRadius: '6px 6px 0 0',
                       }}
                     />
                     <div
-                      className="mono text-[11px]"
-                      style={{ color: 'var(--ink-50)' }}
+                      className="mono text-[11px] transition-colors"
+                      style={{
+                        color: active === i ? 'var(--ink)' : 'var(--ink-50)',
+                        fontWeight: active === i ? 600 : 400,
+                      }}
                     >
                       {e.year}
                     </div>
-                  </div>
+                  </button>
                 )
               })}
             </div>
@@ -365,7 +395,7 @@ export default function EdicoesClient({
                     }}
                   >
                     {t === 'videos' ? 'Vídeos' : 'Fotos'} (
-                    {t === 'fotos' ? photos.length : VIDEOS.length})
+                    {t === 'fotos' ? photos.length : videos.length})
                   </button>
                 )
               })}
@@ -478,6 +508,15 @@ export default function EdicoesClient({
                 })}
               </div>
             )
+          ) : filteredVideos.length === 0 ? (
+            <div
+              className="text-center py-16 mono text-[11px] tracking-[0.14em]"
+              style={{ color: 'var(--ink-50)' }}
+            >
+              {videos.length === 0
+                ? 'GALERIA DE VÍDEOS EM CONSTRUÇÃO'
+                : 'NENHUM VÍDEO PARA ESSA EDIÇÃO'}
+            </div>
           ) : (
             <div
               className="grid gap-4"
@@ -488,136 +527,125 @@ export default function EdicoesClient({
               }}
             >
               {filteredVideos.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => setLightbox(v)}
-                  className="rounded-[14px] overflow-hidden relative cursor-pointer text-left"
-                  style={{
-                    gridColumn: v.feat ? 'span 3' : 'auto',
-                    aspectRatio: v.feat ? '21/9' : '4/3',
-                    background: v.c,
-                    border: 'none',
-                  }}
-                >
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      background:
-                        'linear-gradient(180deg, transparent 40%, rgba(0,0,0,.5) 100%)',
-                    }}
-                  />
-                  <div className="absolute top-4 left-4">
-                    <div
-                      className="mono text-[11px] tracking-[0.1em]"
-                      style={{ color: 'rgba(255,255,255,.85)' }}
-                    >
-                      {v.ed}
-                    </div>
-                  </div>
-                  <div
-                    className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[11px] mono text-white"
-                    style={{ background: 'rgba(0,0,0,.45)' }}
-                  >
-                    {v.dur}
-                  </div>
-                  <div className="absolute inset-0 grid place-items-center">
-                    <div
-                      className="rounded-full grid place-items-center"
-                      style={{
-                        width: v.feat ? 84 : 60,
-                        height: v.feat ? 84 : 60,
-                        background: 'rgba(255,255,255,.95)',
-                        color: v.c,
-                      }}
-                    >
-                      <Play
-                        size={v.feat ? 30 : 22}
-                        fill="currentColor"
-                        stroke="none"
-                      />
-                    </div>
-                  </div>
-                  <div className="absolute bottom-4 left-4 right-4 text-white">
-                    <div
-                      className={v.feat ? 'display' : ''}
-                      style={{
-                        fontSize: v.feat ? 22 : 15,
-                        fontWeight: 600,
-                        letterSpacing: '-.01em',
-                      }}
-                    >
-                      {v.cap}
-                    </div>
-                  </div>
-                </button>
+                <VideoCard key={v.id} v={v} onOpen={() => setLightbox(v)} />
               ))}
             </div>
           )}
         </div>
       </section>
 
-      {lightbox && (
-        <div
-          onClick={() => setLightbox(null)}
-          className="fixed inset-0 z-[200] grid place-items-center p-10"
-          style={{ background: 'rgba(10,10,30,.85)', backdropFilter: 'blur(10px)' }}
-        >
+      {lightbox && (() => {
+        const isVideo = mediaTab === 'videos'
+        const videoParsed = isVideo
+          ? parseVideoUrl((lightbox as Video).url)
+          : null
+        const videoUrl = isVideo ? (lightbox as Video).url : null
+        const isInstagram = videoParsed?.platform === 'instagram'
+        return (
+          <ModalPortal>
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative overflow-hidden rounded-2xl w-full"
+            onClick={() => setLightbox(null)}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6"
             style={{
-              maxWidth: 1100,
-              aspectRatio: '16/10',
-              background: lightbox.c,
+              background: 'rgba(10,10,30,.85)',
+              backdropFilter: 'blur(10px)',
             }}
           >
-            {'url' in lightbox && lightbox.url && mediaTab === 'fotos' && (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={lightbox.url}
-                alt={'alt' in lightbox ? lightbox.alt ?? lightbox.cap : lightbox.cap}
-                className="absolute inset-0 object-contain w-full h-full"
-                style={{ background: 'rgba(0,0,0,.85)' }}
-              />
-            )}
-            {mediaTab === 'videos' && (
-              <div className="absolute inset-0 grid place-items-center">
-                <div
-                  className="w-[100px] h-[100px] rounded-full grid place-items-center"
-                  style={{
-                    background: 'rgba(255,255,255,.95)',
-                    color: lightbox.c,
-                  }}
-                >
-                  <Play size={40} fill="currentColor" stroke="none" />
-                </div>
-              </div>
-            )}
             <div
-              className="absolute bottom-6 left-8 text-white"
-              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative overflow-hidden rounded-2xl"
+              style={{
+                // Largura = menor entre (90vw, max teórico, altura × proporção).
+                // Como aspectRatio ignora max-height, calculamos a largura usando
+                // a altura disponível (90vh) pra garantir que cabe na viewport.
+                width: isInstagram
+                  ? `min(90vw, 480px, calc(90vh * 9/16))`
+                  : isVideo
+                    ? `min(95vw, 1100px, calc(90vh * 16/9))`
+                    : `min(95vw, 1100px, calc(90vh * 16/10))`,
+                aspectRatio: isInstagram
+                  ? '9/16'
+                  : isVideo
+                    ? '16/9'
+                    : '16/10',
+                background: lightbox.c,
+              }}
             >
-              <div className="mono text-[11px] opacity-80 tracking-[0.1em] mb-1.5">
-                {lightbox.ed}
-                {'dur' in lightbox && lightbox.dur ? ` · ${lightbox.dur}` : ''}
-              </div>
-              <div
-                className="display"
-                style={{ fontSize: 28, letterSpacing: '-.02em' }}
-              >
-                {lightbox.cap}
-              </div>
+              {!isVideo && 'url' in lightbox && lightbox.url && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={lightbox.url}
+                  alt={'alt' in lightbox ? lightbox.alt ?? lightbox.cap : lightbox.cap}
+                  className="absolute inset-0 object-contain w-full h-full"
+                  style={{ background: 'rgba(0,0,0,.85)' }}
+                />
+              )}
+              {isVideo && videoParsed?.embedUrl && (
+                <iframe
+                  src={videoParsed.embedUrl}
+                  title={lightbox.cap}
+                  className="absolute inset-0 w-full h-full"
+                  style={{ border: 'none', background: 'black' }}
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              )}
+              {isVideo && !videoParsed?.embedUrl && videoUrl && (
+                <video
+                  src={videoUrl}
+                  controls
+                  autoPlay
+                  className="absolute inset-0 w-full h-full"
+                  style={{ background: 'black' }}
+                />
+              )}
+              {isVideo && !videoUrl && (
+                <div className="absolute inset-0 grid place-items-center text-white">
+                  <div className="text-center">
+                    <div
+                      className="w-[100px] h-[100px] rounded-full grid place-items-center mx-auto mb-4"
+                      style={{
+                        background: 'rgba(255,255,255,.95)',
+                        color: lightbox.c,
+                      }}
+                    >
+                      <Play size={40} fill="currentColor" stroke="none" />
+                    </div>
+                    <p className="mono text-[11px] tracking-[0.1em] opacity-70">
+                      VÍDEO INDISPONÍVEL
+                    </p>
+                  </div>
+                </div>
+              )}
+              {!isVideo && (
+                <div
+                  className="absolute bottom-6 left-8 text-white"
+                  style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}
+                >
+                  <div className="mono text-[11px] opacity-80 tracking-[0.1em] mb-1.5">
+                    {lightbox.ed}
+                    {'dur' in lightbox && lightbox.dur ? ` · ${lightbox.dur}` : ''}
+                  </div>
+                  <div
+                    className="display"
+                    style={{ fontSize: 28, letterSpacing: '-.02em' }}
+                  >
+                    {lightbox.cap}
+                  </div>
+                </div>
+              )}
             </div>
+            <button
+              onClick={() => setLightbox(null)}
+              className="fixed top-6 right-6 w-11 h-11 rounded-full text-lg"
+              style={{ background: 'white', color: 'var(--ink)', border: 'none' }}
+            >
+              ✕
+            </button>
           </div>
-          <button
-            onClick={() => setLightbox(null)}
-            className="fixed top-6 right-6 w-11 h-11 rounded-full text-lg"
-            style={{ background: 'white', color: 'var(--ink)', border: 'none' }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+          </ModalPortal>
+        )
+      })()}
 
       <section style={{ padding: '0 0 96px' }}>
         <div className="container-site">
@@ -655,5 +683,91 @@ export default function EdicoesClient({
         </div>
       </section>
     </div>
+  )
+}
+
+function VideoCard({ v, onOpen }: { v: Video; onOpen: () => void }) {
+  const parsed = parseVideoUrl(v.url)
+  const initialThumb = v.thumb || parsed.thumbnailUrl
+  const [thumbBroken, setThumbBroken] = useState(false)
+  const showImage = !!initialThumb && !thumbBroken
+
+  return (
+    <button
+      onClick={onOpen}
+      className="rounded-[14px] overflow-hidden relative cursor-pointer text-left"
+      style={{
+        gridColumn: v.feat ? 'span 3' : 'auto',
+        aspectRatio: v.feat ? '21/9' : '4/3',
+        background: v.c,
+        border: 'none',
+      }}
+    >
+      {showImage ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={initialThumb!}
+          alt={v.cap}
+          className="absolute inset-0 object-cover w-full h-full"
+          onError={() => setThumbBroken(true)}
+        />
+      ) : (
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'repeating-linear-gradient(135deg, transparent 0 14px, rgba(255,255,255,.08) 14px 15px)',
+          }}
+        />
+      )}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(180deg, transparent 40%, rgba(0,0,0,.5) 100%)',
+        }}
+      />
+      <div className="absolute top-4 left-4">
+        <div
+          className="mono text-[11px] tracking-[0.1em]"
+          style={{ color: 'rgba(255,255,255,.85)' }}
+        >
+          {v.ed}
+        </div>
+      </div>
+      {v.dur && (
+        <div
+          className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[11px] mono text-white"
+          style={{ background: 'rgba(0,0,0,.45)' }}
+        >
+          {v.dur}
+        </div>
+      )}
+      <div className="absolute inset-0 grid place-items-center">
+        <div
+          className="rounded-full grid place-items-center"
+          style={{
+            width: v.feat ? 84 : 60,
+            height: v.feat ? 84 : 60,
+            background: 'rgba(255,255,255,.95)',
+            color: v.c,
+          }}
+        >
+          <Play size={v.feat ? 30 : 22} fill="currentColor" stroke="none" />
+        </div>
+      </div>
+      <div className="absolute bottom-4 left-4 right-4 text-white">
+        <div
+          className={v.feat ? 'display' : ''}
+          style={{
+            fontSize: v.feat ? 22 : 15,
+            fontWeight: 600,
+            letterSpacing: '-.01em',
+          }}
+        >
+          {v.cap}
+        </div>
+      </div>
+    </button>
   )
 }
