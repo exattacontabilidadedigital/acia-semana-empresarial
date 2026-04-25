@@ -14,8 +14,13 @@ import {
   Briefcase,
   Store,
   Image as ImageIcon,
+  Video as VideoIcon,
   Clock,
   ScrollText,
+  Inbox,
+  Award,
+  PenTool,
+  Mail as MailIcon,
   LogOut,
   Menu,
   X,
@@ -25,13 +30,29 @@ import {
   UserCog,
   Bot,
   Settings,
+  Activity,
+  XCircle as XCircleIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { getNewLeadsCount } from '@/app/admin/leads-patrocinio/actions'
+import { getPendingExhibitorsCount } from '@/app/admin/expositores/actions'
 
-type NavLeaf = { href: string; label: string; icon: LucideIcon }
-type NavGroup = { id: string; label: string; icon: LucideIcon; children: NavLeaf[] }
+type BadgeKey = 'new_leads' | 'pending_exhibitors'
+type NavLeaf = {
+  href: string
+  label: string
+  icon: LucideIcon
+  badgeKey?: BadgeKey
+}
+type NavGroup = {
+  id: string
+  label: string
+  icon: LucideIcon
+  children: NavLeaf[]
+  badgeKey?: BadgeKey
+}
 type NavEntry = NavLeaf | NavGroup
 
 const isGroup = (entry: NavEntry): entry is NavGroup =>
@@ -41,13 +62,35 @@ const navItems: NavEntry[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/eventos', label: 'Eventos', icon: Calendar },
   { href: '/admin/inscricoes', label: 'Inscrições', icon: Users },
+  { href: '/admin/cancelamentos', label: 'Cancelamentos', icon: XCircleIcon },
   { href: '/admin/cupons', label: 'Cupons', icon: Ticket },
   { href: '/admin/associados', label: 'Associados', icon: Briefcase },
   { href: '/admin/checkin', label: 'Check-in', icon: QrCode },
-  { href: '/admin/expositores', label: 'Expositores', icon: Store },
+  { href: '/admin/checkin/live', label: 'Check-in ao vivo', icon: Activity },
+  {
+    href: '/admin/expositores',
+    label: 'Expositores',
+    icon: Store,
+    badgeKey: 'pending_exhibitors',
+  },
+  { href: '/admin/certificados', label: 'Certificados', icon: Award },
   { href: '/admin/usuarios', label: 'Usuários', icon: UserCog },
   { href: '/admin/relatorios', label: 'Relatórios', icon: BarChart3 },
-  { href: '/admin/parceiros', label: 'Parceiros', icon: Building2 },
+  {
+    id: 'parceiros',
+    label: 'Parceiros',
+    icon: Building2,
+    badgeKey: 'new_leads',
+    children: [
+      { href: '/admin/parceiros', label: 'Organizações', icon: Building2 },
+      {
+        href: '/admin/leads-patrocinio',
+        label: 'Leads de patrocínio',
+        icon: Inbox,
+        badgeKey: 'new_leads',
+      },
+    ],
+  },
   {
     id: 'configuracoes',
     label: 'Configurações',
@@ -55,6 +98,9 @@ const navItems: NavEntry[] = [
     children: [
       { href: '/admin/edicoes', label: 'Edições', icon: Clock },
       { href: '/admin/galeria', label: 'Galeria', icon: ImageIcon },
+      { href: '/admin/videos', label: 'Vídeos', icon: VideoIcon },
+      { href: '/admin/configuracoes/assinaturas', label: 'Assinaturas', icon: PenTool },
+      { href: '/admin/configuracoes/smtp', label: 'Email (SMTP)', icon: MailIcon },
       { href: '/admin/legal', label: 'Termos & LGPD', icon: ScrollText },
       { href: '/admin/chat-conhecimento', label: 'Conhecimento (Aci)', icon: Bot },
     ],
@@ -65,9 +111,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
-  const pathname = usePathname()
+  const [newLeadsCount, setNewLeadsCount] = useState(0)
+  const [pendingExhibitorsCount, setPendingExhibitorsCount] = useState(0)
+  const pathname = usePathname() ?? ''
   const router = useRouter()
   const supabase = createClient()
+
+  const badges: Record<BadgeKey, number> = {
+    new_leads: newLeadsCount,
+    pending_exhibitors: pendingExhibitorsCount,
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem('admin_sidebar_collapsed')
@@ -79,6 +132,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       /* ignore */
     }
   }, [])
+
+  // Polling dos contadores de notificação (leads + expositores pendentes).
+  // Refaz: na montagem, ao mudar de rota, ao voltar pra aba e a cada 60s.
+  useEffect(() => {
+    let cancelled = false
+    async function refresh() {
+      try {
+        const [leads, exhibitors] = await Promise.all([
+          getNewLeadsCount(),
+          getPendingExhibitorsCount(),
+        ])
+        if (cancelled) return
+        setNewLeadsCount(leads)
+        setPendingExhibitorsCount(exhibitors)
+      } catch {
+        /* ignore */
+      }
+    }
+    refresh()
+    const interval = setInterval(refresh, 60000)
+    const onFocus = () => refresh()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [pathname])
 
   // Auto-expande grupo quando um filho está ativo
   useEffect(() => {
@@ -223,6 +304,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {navItems.map((entry) => {
             if (!isGroup(entry)) {
               const isActive = pathname.startsWith(entry.href)
+              const badge = entry.badgeKey ? badges[entry.badgeKey] : 0
               return (
                 <Link
                   key={entry.href}
@@ -252,12 +334,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       }}
                     />
                   )}
-                  <entry.icon
-                    size={18}
-                    className="flex-shrink-0"
-                    style={isActive ? { color: 'var(--laranja)' } : undefined}
-                  />
-                  <span className={cn(collapsed && 'lg:hidden')}>{entry.label}</span>
+                  <span className="relative flex-shrink-0">
+                    <entry.icon
+                      size={18}
+                      style={isActive ? { color: 'var(--laranja)' } : undefined}
+                    />
+                    {badge > 0 && collapsed && <DotIndicator />}
+                  </span>
+                  <span className={cn('flex-1', collapsed && 'lg:hidden')}>
+                    {entry.label}
+                  </span>
+                  {badge > 0 && !collapsed && <CountBadge value={badge} />}
                 </Link>
               )
             }
@@ -274,6 +361,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div key={entry.id} className="hidden lg:block">
                   {entry.children.map((child) => {
                     const isActive = pathname.startsWith(child.href)
+                    const childBadge = child.badgeKey ? badges[child.badgeKey] : 0
                     return (
                       <Link
                         key={child.href}
@@ -302,17 +390,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             }}
                           />
                         )}
-                        <child.icon
-                          size={18}
-                          className="flex-shrink-0"
-                          style={isActive ? { color: 'var(--laranja)' } : undefined}
-                        />
+                        <span className="relative flex-shrink-0">
+                          <child.icon
+                            size={18}
+                            style={isActive ? { color: 'var(--laranja)' } : undefined}
+                          />
+                          {childBadge > 0 && <DotIndicator />}
+                        </span>
                       </Link>
                     )
                   })}
                 </div>
               )
             }
+
+            const groupBadge = entry.badgeKey ? badges[entry.badgeKey] : 0
 
             return (
               <div key={entry.id} className="space-y-0.5">
@@ -334,6 +426,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     }
                   />
                   <span className="flex-1 text-left">{entry.label}</span>
+                  {groupBadge > 0 && !isOpen && <CountBadge value={groupBadge} />}
                   <ChevronDown
                     size={14}
                     className={cn(
@@ -349,6 +442,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   >
                     {entry.children.map((child) => {
                       const isActive = pathname.startsWith(child.href)
+                      const childBadge = child.badgeKey
+                        ? badges[child.badgeKey]
+                        : 0
                       return (
                         <Link
                           key={child.href}
@@ -381,7 +477,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             className="flex-shrink-0"
                             style={isActive ? { color: 'var(--laranja)' } : undefined}
                           />
-                          <span>{child.label}</span>
+                          <span className="flex-1">{child.label}</span>
+                          {childBadge > 0 && <CountBadge value={childBadge} />}
                         </Link>
                       )
                     })}
@@ -462,5 +559,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main className="p-4 lg:p-10">{children}</main>
       </div>
     </div>
+  )
+}
+
+function CountBadge({ value }: { value: number }) {
+  const display = value > 99 ? '99+' : String(value)
+  return (
+    <span
+      className="mono inline-flex items-center justify-center rounded-full text-[10px] font-bold leading-none"
+      style={{
+        background: 'var(--laranja)',
+        color: 'white',
+        minWidth: 18,
+        height: 18,
+        padding: '0 6px',
+      }}
+    >
+      {display}
+    </span>
+  )
+}
+
+function DotIndicator() {
+  return (
+    <span
+      className="absolute rounded-full"
+      style={{
+        top: -2,
+        right: -2,
+        width: 8,
+        height: 8,
+        background: 'var(--laranja)',
+        boxShadow: '0 0 0 2px var(--azul-900)',
+      }}
+    />
   )
 }

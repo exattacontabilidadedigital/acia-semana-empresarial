@@ -3,9 +3,12 @@ import { Briefcase, ArrowUpRight, CheckCircle, XCircle, Hash } from 'lucide-reac
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import NovoAssociadoModal from '@/components/admin/NovoAssociadoModal'
 import ImportarAssociadosModal from '@/components/admin/ImportarAssociadosModal'
+import Pagination from '@/components/ui/Pagination'
 import { formatDateShort } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
+
+const PAGE_SIZE = 20
 
 const STATUS_PILL: Record<string, { bg: string; color: string; label: string }> = {
   active: { bg: 'rgba(166,206,58,0.18)', color: '#3d5a0a', label: 'ATIVO' },
@@ -21,19 +24,23 @@ function formatCnpj(cnpj: string | null): string {
 export default async function AdminAssociadosPage({
   searchParams,
 }: {
-  searchParams: { error?: string; busca?: string; status?: string }
+  searchParams: { error?: string; busca?: string; status?: string; pagina?: string }
 }) {
   const supabase = createServerSupabaseClient()
 
   const busca = (searchParams.busca ?? '').trim()
   const statusFilter = searchParams.status ?? ''
+  const page = Math.max(1, Number(searchParams.pagina) || 1)
+  const offset = (page - 1) * PAGE_SIZE
 
   let query = supabase
     .from('associates')
     .select(
-      'id, razao_social, nome_fantasia, cnpj, segmento, status, cidade, estado, created_at'
+      'id, razao_social, nome_fantasia, cnpj, segmento, status, cidade, estado, created_at',
+      { count: 'exact' }
     )
     .order('razao_social', { ascending: true })
+    .range(offset, offset + PAGE_SIZE - 1)
 
   if (statusFilter) query = query.eq('status', statusFilter)
   if (busca) {
@@ -42,7 +49,7 @@ export default async function AdminAssociadosPage({
     )
   }
 
-  const [{ data: associates }, { count: totalAll }, { count: totalActive }] =
+  const [associatesResult, { count: totalAll }, { count: totalActive }] =
     await Promise.all([
       query,
       supabase.from('associates').select('*', { count: 'exact', head: true }),
@@ -51,6 +58,10 @@ export default async function AdminAssociadosPage({
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active'),
     ])
+
+  const associates = associatesResult.data
+  const count = associatesResult.count
+  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
 
   return (
     <div className="page-enter">
@@ -288,6 +299,19 @@ export default async function AdminAssociadosPage({
             </table>
           </div>
         )}
+
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={count ?? 0}
+          buildUrl={(p) => {
+            const params = new URLSearchParams()
+            if (searchParams.busca) params.set('busca', searchParams.busca)
+            if (searchParams.status) params.set('status', searchParams.status)
+            if (p > 1) params.set('pagina', String(p))
+            return params.toString() ? `?${params.toString()}` : '?'
+          }}
+        />
       </div>
     </div>
   )

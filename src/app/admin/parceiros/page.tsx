@@ -4,8 +4,11 @@ import { Building2, ArrowUpRight } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { ORG_TYPE_LABELS } from '@/lib/orgs'
 import NovaOrgModal from '@/components/admin/NovaOrgModal'
+import Pagination from '@/components/ui/Pagination'
 
 export const dynamic = 'force-dynamic'
+
+const PAGE_SIZE = 20
 
 type OrgRow = {
   id: string
@@ -38,22 +41,31 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
 export default async function AdminParceirosPage({
   searchParams,
 }: {
-  searchParams: { error?: string }
+  searchParams: { error?: string; pagina?: string }
 }) {
   const supabase = createServerSupabaseClient()
+  const page = Math.max(1, Number(searchParams.pagina) || 1)
+  const offset = (page - 1) * PAGE_SIZE
 
-  const [{ data: orgs }, { count: totalOrgs }, { count: activeOrgs }] =
+  const [orgsResult, { count: totalOrgs }, { count: activeOrgs }] =
     await Promise.all([
       supabase
         .from('organizations')
-        .select('id, name, slug, type, status, logo_url, created_at')
-        .order('created_at', { ascending: false }),
+        .select('id, name, slug, type, status, logo_url, created_at', {
+          count: 'exact',
+        })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1),
       supabase.from('organizations').select('*', { count: 'exact', head: true }),
       supabase
         .from('organizations')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active'),
     ])
+
+  const orgs = orgsResult.data
+  const count = orgsResult.count
+  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
 
   // Counts por org (membros e eventos) — fetch agregado
   const orgIds = (orgs ?? []).map((o: OrgRow) => o.id)
@@ -280,6 +292,17 @@ export default async function AdminParceirosPage({
             </table>
           </div>
         )}
+
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={count ?? 0}
+          buildUrl={(p) => {
+            const params = new URLSearchParams()
+            if (p > 1) params.set('pagina', String(p))
+            return params.toString() ? `?${params.toString()}` : '?'
+          }}
+        />
       </div>
     </div>
   )

@@ -3,8 +3,11 @@ import { ImageIcon, Filter, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import PhotoUploadModal from '@/components/admin/PhotoUploadModal'
 import PhotoEditCard from '@/components/admin/PhotoEditCard'
+import Pagination from '@/components/ui/Pagination'
 
 export const dynamic = 'force-dynamic'
+
+const PAGE_SIZE = 20
 
 export default async function AdminGaleriaPage({
   searchParams,
@@ -14,11 +17,14 @@ export default async function AdminGaleriaPage({
     error?: string
     uploaded?: string
     upload_errors?: string
+    pagina?: string
   }
 }) {
   const supabase = createServerSupabaseClient()
 
   const editionFilter = searchParams.edicao ? Number(searchParams.edicao) : null
+  const page = Math.max(1, Number(searchParams.pagina) || 1)
+  const offset = (page - 1) * PAGE_SIZE
 
   const [{ data: editions }, photosResp] = await Promise.all([
     supabase
@@ -29,10 +35,12 @@ export default async function AdminGaleriaPage({
       let q = supabase
         .from('gallery_photos')
         .select(
-          'id, url, caption, alt, edition_id, size_hint, order_index, featured, created_at'
+          'id, url, caption, alt, edition_id, size_hint, order_index, featured, created_at',
+          { count: 'exact' }
         )
         .order('order_index', { ascending: true })
         .order('id', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1)
       if (editionFilter === 0) q = q.is('edition_id', null)
       else if (editionFilter) q = q.eq('edition_id', editionFilter)
       return q
@@ -40,6 +48,8 @@ export default async function AdminGaleriaPage({
   ])
 
   const photos = photosResp.data ?? []
+  const count = photosResp.count
+  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
 
   return (
     <div className="page-enter">
@@ -157,6 +167,18 @@ export default async function AdminGaleriaPage({
             ))}
           </div>
         )}
+
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={count ?? 0}
+          buildUrl={(p) => {
+            const params = new URLSearchParams()
+            if (searchParams.edicao) params.set('edicao', searchParams.edicao)
+            if (p > 1) params.set('pagina', String(p))
+            return params.toString() ? `?${params.toString()}` : '?'
+          }}
+        />
       </div>
     </div>
   )

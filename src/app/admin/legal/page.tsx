@@ -2,8 +2,11 @@ import Link from 'next/link'
 import { ArrowUpRight, FileText, Shield } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { formatDateShort } from '@/lib/utils'
+import Pagination from '@/components/ui/Pagination'
 
 export const dynamic = 'force-dynamic'
+
+const PAGE_SIZE = 20
 
 const SLUG_META: Record<string, { icon: any; description: string; publicPath: string }> = {
   terms: {
@@ -18,12 +21,21 @@ const SLUG_META: Record<string, { icon: any; description: string; publicPath: st
   },
 }
 
-export default async function AdminLegalPage() {
+export default async function AdminLegalPage({
+  searchParams,
+}: {
+  searchParams: { pagina?: string }
+}) {
   const supabase = createServerSupabaseClient()
-  const { data: docs } = await supabase
+  const page = Math.max(1, Number(searchParams.pagina) || 1)
+  const offset = (page - 1) * PAGE_SIZE
+
+  const { data: docs, count } = await supabase
     .from('legal_documents')
-    .select('id, slug, title, last_revision, updated_at')
+    .select('id, slug, title, last_revision, updated_at', { count: 'exact' })
     .order('slug', { ascending: true })
+    .range(offset, offset + PAGE_SIZE - 1)
+  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
 
   // Conta seções por doc
   const docIds = (docs ?? []).map((d: any) => d.id)
@@ -142,6 +154,17 @@ export default async function AdminLegalPage() {
           )
         })}
       </div>
+
+      <Pagination
+        currentPage={page}
+        totalPages={totalPages}
+        totalItems={count ?? 0}
+        buildUrl={(p) => {
+          const params = new URLSearchParams()
+          if (p > 1) params.set('pagina', String(p))
+          return params.toString() ? `?${params.toString()}` : '?'
+        }}
+      />
     </div>
   )
 }

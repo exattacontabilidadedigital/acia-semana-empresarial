@@ -3,9 +3,12 @@ import Image from 'next/image'
 import { Calendar, ArrowUpRight, ImageOff } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import NovaEdicaoModal from '@/components/admin/NovaEdicaoModal'
+import Pagination from '@/components/ui/Pagination'
 import { formatDateShort } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
+
+const PAGE_SIZE = 20
 
 const STATUS_PILL: Record<string, { bg: string; color: string; label: string }> = {
   published: { bg: 'rgba(166,206,58,0.18)', color: '#3d5a0a', label: 'PUBLICADA' },
@@ -16,15 +19,21 @@ const STATUS_PILL: Record<string, { bg: string; color: string; label: string }> 
 export default async function AdminEdicoesPage({
   searchParams,
 }: {
-  searchParams: { error?: string }
+  searchParams: { error?: string; pagina?: string }
 }) {
   const supabase = createServerSupabaseClient()
+  const page = Math.max(1, Number(searchParams.pagina) || 1)
+  const offset = (page - 1) * PAGE_SIZE
 
-  const { data: editions } = await supabase
+  const { data: editions, count } = await supabase
     .from('editions')
-    .select('id, year, ordinal, title, description, status, cover_url, color, order_index, created_at')
+    .select(
+      'id, year, ordinal, title, description, status, cover_url, color, order_index, created_at',
+      { count: 'exact' }
+    )
     .order('order_index', { ascending: true })
     .order('year', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1)
 
   // Conta fotos por edição
   const { data: photoCounts } = await supabase
@@ -37,8 +46,12 @@ export default async function AdminEdicoesPage({
     if (eid != null) photosByEdition[eid] = (photosByEdition[eid] ?? 0) + 1
   }
 
-  const totalEditions = editions?.length ?? 0
-  const publishedCount = editions?.filter((e: any) => e.status === 'published').length ?? 0
+  const totalEditions = count ?? 0
+  const { count: publishedCount } = await supabase
+    .from('editions')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'published')
+  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
 
   return (
     <div className="page-enter">
@@ -77,10 +90,10 @@ export default async function AdminEdicoesPage({
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <MiniStat label="TOTAL" value={totalEditions} accent="var(--azul)" />
-        <MiniStat label="PUBLICADAS" value={publishedCount} accent="var(--verde-600)" />
+        <MiniStat label="PUBLICADAS" value={publishedCount ?? 0} accent="var(--verde-600)" />
         <MiniStat
           label="RASCUNHOS / ARQUIVADAS"
-          value={totalEditions - publishedCount}
+          value={totalEditions - (publishedCount ?? 0)}
           accent="var(--ink-50)"
         />
       </div>
@@ -217,6 +230,17 @@ export default async function AdminEdicoesPage({
             </table>
           </div>
         )}
+
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={count ?? 0}
+          buildUrl={(p) => {
+            const params = new URLSearchParams()
+            if (p > 1) params.set('pagina', String(p))
+            return params.toString() ? `?${params.toString()}` : '?'
+          }}
+        />
       </div>
     </div>
   )
