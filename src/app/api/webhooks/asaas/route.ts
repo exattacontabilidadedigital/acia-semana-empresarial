@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { generateAndUploadQRCode } from '@/lib/qrcode'
+import { confirmInscriptionAtomic } from '@/lib/inscriptions'
+import { reportError } from '@/lib/observability'
 
 export async function POST(request: Request) {
   try {
@@ -16,12 +17,33 @@ export async function POST(request: Request) {
     const body = await request.json()
     const supabase = createAdminClient()
 
-    // Log webhook event
-    await supabase.from('webhook_events').insert({
-      event_type: body.event,
-      payment_id: body.payment?.id || null,
-      raw_body: body,
-    })
+    // Idempotência por event id do Asaas: se já vimos esse evento, ignora.
+    // O Asaas costuma reenviar webhooks em caso de timeout/falha — sem essa proteção
+    // poderíamos criar tickets duplicados.
+    const eventId: string | null = body.id ?? null
+    if (eventId) {
+      const { data: existing } = await supabase
+        .from('webhook_events')
+        .select('id, processed')
+        .eq('event_id', eventId)
+        .maybeSingle()
+      if (existing?.processed) {
+        console.log(`[WEBHOOK] Evento ${eventId} já processado — ignorando duplicata`)
+        return NextResponse.json({ received: true, duplicate: true })
+      }
+    }
+
+    // Log webhook event (best-effort; tabela pode não ter event_id se migração não rodou)
+    const { data: insertedEvent } = await supabase
+      .from('webhook_events')
+      .insert({
+        event_id: eventId,
+        event_type: body.event,
+        payment_id: body.payment?.id || null,
+        raw_body: body,
+      })
+      .select('id')
+      .maybeSingle()
 
     console.log(`[WEBHOOK] Evento recebido: ${body.event} - Payment: ${body.payment?.id}`)
 
@@ -30,7 +52,6 @@ export async function POST(request: Request) {
       const paymentId = body.payment?.id
       if (!paymentId) return NextResponse.json({ received: true })
 
-      // Find all inscriptions with this payment_id (supports multi-event cart)
       const { data: inscriptions } = await supabase
         .from('inscriptions')
         .select('*')
@@ -41,53 +62,29 @@ export async function POST(request: Request) {
         return NextResponse.json({ received: true })
       }
 
-      // Gerar 1 QR code por grupo
-      const groupId = inscriptions[0].purchase_group
-      const qrCodeDataUrl = groupId
-        ? await generateAndUploadQRCode(groupId, 'group')
-        : await generateAndUploadQRCode(inscriptions[0].order_number!)
-
-      // Process each inscription
+      // Confirma cada inscription de forma atômica (UPDATE WHERE payment_status='pending').
+      // Race-safe: se webhook + polling/sync chegarem simultaneamente, só um efetivamente
+      // confirma e cria tickets; o outro recebe `false` e segue adiante.
       for (const inscription of inscriptions) {
-
-        // Update payment status + QR code
-        await supabase
-          .from('inscriptions')
-          .update({ payment_status: 'confirmed', qr_code: qrCodeDataUrl })
-          .eq('id', inscription.id)
-
-        // Create tickets
-        const tickets = []
-        for (let i = 0; i < (inscription.quantity || 1); i++) {
-          tickets.push({
-            inscription_id: inscription.id,
-            event_id: inscription.event_id,
-            participant_name: inscription.nome,
-            status: 'active',
-          })
-        }
-
-        await supabase.from('tickets').insert(tickets)
-
-        console.log(`[WEBHOOK] Inscrição ${inscription.order_number} confirmada - ${tickets.length} ticket(s) criado(s)`)
-
-        // Send confirmation email
-        try {
-          await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/email/confirmation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order_number: inscription.order_number }),
-          })
-          console.log(`[WEBHOOK] Email de confirmação enviado para ${inscription.email}`)
-        } catch (e) {
-          console.error('Erro ao enviar email:', e)
-        }
+        await confirmInscriptionAtomic(supabase, inscription)
       }
+    }
+
+    // Marca evento como processado
+    if (insertedEvent?.id) {
+      await supabase
+        .from('webhook_events')
+        .update({ processed: true })
+        .eq('id', insertedEvent.id)
     }
 
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('Erro no webhook Asaas:', error)
+    reportError(error, {
+      scope: 'webhook.asaas',
+      tags: { event_type: 'unknown' },
+    })
+    // Sempre 200 para Asaas não retentar indefinidamente — o erro já foi capturado
     return NextResponse.json({ received: true })
   }
 }

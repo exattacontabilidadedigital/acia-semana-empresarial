@@ -17,6 +17,13 @@ const nextConfig = {
       { source: '/contato', destination: '/parceiros', permanent: true },
       { source: '/expositor', destination: '/expositores', permanent: true },
       { source: '/expositor/:path*', destination: '/expositores/:path*', permanent: true },
+      { source: '/carrinho', destination: '/programacao', permanent: true },
+      { source: '/carrinho/:path*', destination: '/programacao/:path*', permanent: true },
+      {
+        source: '/inscricoes/minhas',
+        destination: '/programacao?aba=confirmadas',
+        permanent: true,
+      },
     ]
   },
 }
