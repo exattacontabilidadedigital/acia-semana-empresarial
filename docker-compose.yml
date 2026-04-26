@@ -1,5 +1,5 @@
-# Docker Compose para deploy (Hostinger / VPS).
-# Variáveis sensíveis vêm do painel do provedor (env_file ou Environment Variables).
+# Docker Compose para deploy em VPS com Nginx como reverse proxy.
+# Variáveis sensíveis vêm do arquivo .env ao lado deste compose (na VPS).
 # Nada de segredos commitados.
 
 services:
@@ -8,40 +8,55 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
+        # NEXT_PUBLIC_* precisam existir no BUILD (vão pro bundle do client).
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
     image: acia-semana-empresarial:latest
     container_name: acia-semana-empresarial
     restart: unless-stopped
-    # Mapeia 3001 do host → 3000 do container.
-    # 3000 estava ocupada por outro serviço; 3001 dá acesso direto e
-    # também permite que o reverse proxy do Hostinger encontre.
+    # Bind apenas em 127.0.0.1: a porta 3002 do host fica acessível só
+    # pelo Nginx local (que faz reverse proxy do domínio público).
+    # Portas 3000 e 3001 já estão reservadas pelo TaxHub e pelo Planejador.
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3002:3000"
     environment:
       NODE_ENV: production
       TZ: America/Sao_Paulo
       PORT: 3000
       HOSTNAME: 0.0.0.0
-      # --- runtime (server-side) ---
+      # --- Supabase ---
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      # --- URLs públicas (usadas em links de email, QR Code, certificados) ---
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
       EMAIL_SITE_URL: ${EMAIL_SITE_URL}
+      # --- Asaas ---
       ASAAS_API_KEY: ${ASAAS_API_KEY}
       ASAAS_API_URL: ${ASAAS_API_URL}
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
+      # --- SMTP ---
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_SECURE: ${SMTP_SECURE}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM}
+      # --- IA chat (z.ai) ---
       ZAI_API_KEY: ${ZAI_API_KEY}
       ZAI_MODEL: ${ZAI_MODEL:-glm-4.5-flash}
       ZAI_BASE_URL: ${ZAI_BASE_URL:-https://api.z.ai/api/paas/v4}
+      # --- Observabilidade (Sentry) — vazio = desativado ---
+      SENTRY_DSN: ${SENTRY_DSN}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
+      # --- Cron de retry de e-mails ---
+      CRON_SECRET: ${CRON_SECRET}
+      # --- Admin / certificados / leads ---
+      ADMIN_NOTIFY_EMAIL: ${ADMIN_NOTIFY_EMAIL}
+      LEADS_NOTIFY_EMAIL: ${LEADS_NOTIFY_EMAIL}
+      CERTIFICATE_SIGNING_SECRET: ${CERTIFICATE_SIGNING_SECRET}
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 30s
