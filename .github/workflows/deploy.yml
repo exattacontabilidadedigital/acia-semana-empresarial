@@ -1,0 +1,40 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd ${{ secrets.VPS_PATH }}
+            echo "::group::git pull"
+            git fetch --prune
+            git reset --hard origin/main
+            echo "::endgroup::"
+            echo "::group::docker build & up"
+            docker compose up -d --build --remove-orphans
+            echo "::endgroup::"
+            echo "::group::cleanup"
+            docker image prune -f
+            echo "::endgroup::"
+            echo "::group::status"
+            docker compose ps
+            docker compose logs --tail=20 web
+            echo "::endgroup::"
