@@ -26,30 +26,13 @@ const SEGMENTS = [
   'Indústria', 'Agronegócio', 'Educação', 'Outro',
 ]
 
-const PAST_EXHIBITORS = [
-  { name: 'Vale', cat: 'Indústria', c: 'var(--verde)' },
-  { name: 'Suzano', cat: 'Indústria', c: 'var(--verde)' },
-  { name: 'Gerdau', cat: 'Indústria', c: 'var(--laranja)' },
-  { name: 'Caixa', cat: 'Financeiro', c: 'var(--laranja)' },
-  { name: 'Banco do Brasil', cat: 'Financeiro', c: 'var(--laranja)' },
-  { name: 'Sicoob', cat: 'Financeiro', c: 'var(--verde)' },
-  { name: 'Sebrae', cat: 'Institucional', c: 'var(--ciano)' },
-  { name: 'Fiema', cat: 'Institucional', c: 'var(--laranja)' },
-  { name: 'Senai', cat: 'Educação', c: 'var(--laranja)' },
-  { name: 'Senac', cat: 'Educação', c: 'var(--laranja)' },
-  { name: 'IFMA', cat: 'Educação', c: 'var(--laranja)' },
-  { name: 'Light Veículos', cat: 'Automotivo', c: 'var(--ciano)' },
-  { name: 'Agro Açailândia', cat: 'Agronegócio', c: 'var(--verde)' },
-  { name: 'Tec Norte', cat: 'Tecnologia', c: 'var(--laranja)' },
-  { name: 'Constrular', cat: 'Construção', c: 'var(--laranja)' },
-  { name: 'Casa & Lar', cat: 'Varejo', c: 'var(--ciano)' },
-  { name: 'Sicredi', cat: 'Financeiro', c: 'var(--verde)' },
-  { name: 'Banco do Nordeste', cat: 'Financeiro', c: 'var(--laranja)' },
-  { name: 'Sesi', cat: 'Institucional', c: 'var(--laranja)' },
-  { name: 'CEMAR', cat: 'Energia', c: 'var(--verde)' },
-]
-
-const CATEGORIES = ['Todos', 'Indústria', 'Financeiro', 'Institucional', 'Educação', 'Automotivo']
+interface PastExhibitor {
+  id: number
+  name: string
+  category: string | null
+  logo_url: string | null
+  color: string | null
+}
 
 const INFO_BLOCKS = [
   {
@@ -252,6 +235,7 @@ export default function ExpositoresPage() {
   const [loadingStands, setLoadingStands] = useState(true)
   const [selectedStand, setSelectedStand] = useState<Stand | null>(null)
   const [filterType, setFilterType] = useState<'all' | StandType>('all')
+  const [pastExhibitors, setPastExhibitors] = useState<PastExhibitor[]>([])
 
   const [form, setForm] = useState({
     company_name: '',
@@ -312,6 +296,13 @@ export default function ExpositoresPage() {
     fetchStands()
   }, [])
 
+  useEffect(() => {
+    fetch('/api/past-exhibitors')
+      .then((r) => r.json())
+      .then((d) => setPastExhibitors(d.exhibitors || []))
+      .catch(() => setPastExhibitors([]))
+  }, [])
+
   // Trava o scroll do body quando o modal estiver aberto (foco no modal)
   useEffect(() => {
     if (!selectedStand) return
@@ -341,7 +332,17 @@ export default function ExpositoresPage() {
     return { total, available, reserved, sold }
   }, [stands])
 
-  const filteredExhibitors = PAST_EXHIBITORS.filter((e) => cat === 'Todos' || e.cat === cat)
+  const carouselCategories = useMemo(() => {
+    const set = new Set<string>()
+    pastExhibitors.forEach((e) => {
+      if (e.category) set.add(e.category)
+    })
+    return ['Todos', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'pt'))]
+  }, [pastExhibitors])
+
+  const filteredExhibitors = pastExhibitors.filter(
+    (e) => cat === 'Todos' || e.category === cat,
+  )
 
   // Auto-scroll do carrossel (pausa no hover ou quando filtro muda)
   useEffect(() => {
@@ -790,7 +791,7 @@ export default function ExpositoresPage() {
               </h2>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {CATEGORIES.map((c) => {
+              {carouselCategories.map((c) => {
                 const isActive = cat === c
                 return (
                   <button
@@ -883,26 +884,54 @@ export default function ExpositoresPage() {
               }}
               className="no-scrollbar"
             >
-              {filteredExhibitors.map((e, i) => (
+              {filteredExhibitors.map((e) => (
                 <div
-                  key={i}
-                  className="bg-white border border-line rounded-[10px] flex flex-col gap-3.5 shrink-0"
+                  key={e.id}
+                  className="bg-white border border-line rounded-[10px] flex flex-col gap-3 shrink-0"
                   style={{
-                    padding: '24px 18px',
-                    minHeight: 140,
+                    padding: '20px 18px',
+                    minHeight: 180,
                     width: 220,
                     scrollSnapAlign: 'start',
                   }}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="w-2 h-2 rounded-full block" style={{ background: e.c }} />
-                    <span className="mono text-[10px] text-ink-50 tracking-[0.1em]">
-                      {e.cat.toUpperCase()}
+                    <span
+                      className="w-2 h-2 rounded-full block"
+                      style={{ background: e.color || 'var(--ink-50)' }}
+                    />
+                    <span className="mono text-[10px] text-ink-50 tracking-[0.1em] truncate">
+                      {(e.category || 'MARCA').toUpperCase()}
                     </span>
                   </div>
-                  <div className="display mt-auto" style={{ fontSize: 22, letterSpacing: '-.02em' }}>
-                    {e.name}
-                  </div>
+                  {e.logo_url ? (
+                    <div
+                      className="flex-1 flex items-center justify-center"
+                      style={{ minHeight: 80 }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={e.logo_url}
+                        alt={e.name}
+                        className="max-h-20 max-w-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="display flex-1 flex items-end"
+                      style={{ fontSize: 22, letterSpacing: '-.02em' }}
+                    >
+                      {e.name}
+                    </div>
+                  )}
+                  {e.logo_url && (
+                    <div
+                      className="mono text-[11px] text-ink-70 truncate"
+                      title={e.name}
+                    >
+                      {e.name}
+                    </div>
+                  )}
                 </div>
               ))}
               {filteredExhibitors.length === 0 && (

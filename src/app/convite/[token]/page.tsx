@@ -4,7 +4,8 @@ import { ArrowRight } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { acceptInvitation } from '@/lib/invitations'
-import { ORG_TYPE_LABELS } from '@/lib/orgs'
+import { ORG_TYPE_LABELS, ORG_ROLE_LABELS, normalizeOrgRole } from '@/lib/orgs'
+import type { OrgRoleStored } from '@/lib/org-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ type InviteRow = {
   id: string
   organization_id: string
   email: string
-  role: 'owner' | 'member'
+  role: OrgRoleStored
   expires_at: string
   accepted_at: string | null
   organizations: {
@@ -118,7 +119,7 @@ export default async function AcceptInvitePage({
           <p className="mt-4" style={{ color: 'var(--ink-70)', fontSize: 15 }}>
             Você foi convidado como{' '}
             <strong style={{ color: 'var(--ink)' }}>
-              {invite.role === 'owner' ? 'Owner' : 'Membro'}
+              {ORG_ROLE_LABELS[normalizeOrgRole(invite.role)]}
             </strong>{' '}
             de{' '}
             <strong style={{ color: 'var(--ink)' }}>

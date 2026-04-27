@@ -1,7 +1,33 @@
 // Tipos e constantes puros — pode ser importado por client e server.
 // Não usar nada de next/headers aqui.
 
-export type OrgRole = 'owner' | 'member'
+export type OrgRole = 'owner' | 'operations' | 'financial' | 'viewer'
+
+// Sinônimo legado: 'member' antes da migration 022 era equivalente a 'operations'.
+// Mantido apenas para parsing de dados antigos que ainda possam aparecer no client.
+export type OrgRoleStored = OrgRole | 'member'
+
+export const ORG_ROLE_LABELS: Record<OrgRole, string> = {
+  owner: 'Proprietário',
+  operations: 'Operações',
+  financial: 'Financeiro',
+  viewer: 'Leitura',
+}
+
+export const ORG_ROLE_DESCRIPTIONS: Record<OrgRole, string> = {
+  owner: 'Acesso total à organização: equipe, dados, eventos, finanças e configurações.',
+  operations: 'Cria e edita eventos, gerencia inscrições, faz check-in, exporta listas.',
+  financial: 'Vê pagamentos, processa cancelamentos e exporta relatórios financeiros.',
+  viewer: 'Acesso apenas de leitura ao painel da organização.',
+}
+
+export function normalizeOrgRole(role: OrgRoleStored | string | null | undefined): OrgRole {
+  if (role === 'member') return 'operations'
+  if (role === 'owner' || role === 'operations' || role === 'financial' || role === 'viewer') {
+    return role
+  }
+  return 'viewer'
+}
 
 export type OrganizationSummary = {
   id: string

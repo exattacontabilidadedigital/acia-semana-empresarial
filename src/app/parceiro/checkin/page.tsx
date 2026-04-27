@@ -3,14 +3,14 @@ import { redirect } from 'next/navigation'
 import { CheckCircle2, Search, AlertCircle, User, Clock } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireActiveOrg } from '@/lib/orgs'
+import { requirePermission } from '@/lib/permissions'
 import { formatCPF } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
 async function checkinAction(formData: FormData) {
   'use server'
-  const org = await requireActiveOrg()
+  const org = await requirePermission('do_checkin')
   const ticketId = String(formData.get('ticket_id'))
   const eventId = Number(formData.get('event_id'))
 
@@ -59,7 +59,7 @@ export default async function ParceiroCheckinPage({
     done?: string
   }
 }) {
-  const org = await requireActiveOrg()
+  const org = await requirePermission('do_checkin')
   const supabase = createServerSupabaseClient()
 
   const eventoFilter = searchParams.evento ?? ''

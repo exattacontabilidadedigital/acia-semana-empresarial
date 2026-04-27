@@ -4,6 +4,7 @@ import {
   saveSmtpConfigAction,
   testSmtpAction,
 } from '@/app/admin/certificados/actions'
+import PasswordInput from '@/components/ui/PasswordInput'
 
 export const dynamic = 'force-dynamic'
 
@@ -282,14 +283,24 @@ function Field({
       >
         {label}
       </span>
-      <input
-        name={name}
-        type={type}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        required={required}
-        className="admin-input w-full px-4 py-3 rounded-xl text-sm"
-      />
+      {type === 'password' ? (
+        <PasswordInput
+          name={name}
+          defaultValue={defaultValue}
+          placeholder={placeholder}
+          required={required}
+          className="admin-input w-full pl-4 pr-11 py-3 rounded-xl text-sm"
+        />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          defaultValue={defaultValue}
+          placeholder={placeholder}
+          required={required}
+          className="admin-input w-full px-4 py-3 rounded-xl text-sm"
+        />
+      )}
     </label>
   )
 }

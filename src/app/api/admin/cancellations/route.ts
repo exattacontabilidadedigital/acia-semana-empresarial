@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { reportError } from '@/lib/observability'
+import { requireAdminApi } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const supabase = createAdminClient()
 
     const { data, error } = await supabase
@@ -42,6 +46,9 @@ const updateSchema = z.object({
 
 export async function PATCH(request: Request) {
   try {
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const body = await request.json()
     const data = updateSchema.parse(body)
 

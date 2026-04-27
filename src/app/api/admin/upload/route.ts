@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireAdminApi } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const formData = await request.formData()
     const file = formData.get('file') as File
     const folder = (formData.get('folder') as string) || 'uploads'
@@ -30,7 +34,7 @@ export async function POST(request: Request) {
 
     const { data } = supabase.storage.from('events').getPublicUrl(path)
 
-    return NextResponse.json({ url: data.publicUrl })
+    return NextResponse.json({ url: data.publicUrl, path })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro desconhecido'
     return NextResponse.json({ error: message }, { status: 500 })

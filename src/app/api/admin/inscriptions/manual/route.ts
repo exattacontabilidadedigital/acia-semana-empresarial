@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { generateAndUploadQRCode } from '@/lib/qrcode'
 import { generateOrderNumber, generatePurchaseGroup } from '@/lib/utils'
+import { requireAdminApi } from '@/lib/auth'
 
 const manualInscriptionSchema = z.object({
   event_id: z.number().int().positive(),
@@ -17,6 +18,9 @@ const manualInscriptionSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const body = await request.json()
     const parsed = manualInscriptionSchema.safeParse(body)
 

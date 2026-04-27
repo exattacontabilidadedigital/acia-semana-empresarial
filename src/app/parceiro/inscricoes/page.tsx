@@ -1,6 +1,6 @@
-import { Search, CheckCircle2 } from 'lucide-react'
+import { Search, CheckCircle2, Download } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { requireActiveOrg } from '@/lib/orgs'
+import { hasPermission, requirePermission } from '@/lib/permissions'
 import { formatCPF, formatDateShort } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,8 @@ export default async function ParceiroInscricoesPage({
 }: {
   searchParams: { evento?: string; busca?: string }
 }) {
-  const org = await requireActiveOrg()
+  const org = await requirePermission('view_inscriptions')
+  const canExport = hasPermission(org.role, 'export_data')
   const supabase = createServerSupabaseClient()
 
   const eventoFilter = searchParams.evento ?? ''
@@ -171,6 +172,21 @@ export default async function ParceiroInscricoesPage({
               Lista de inscrições
             </h2>
           </div>
+          {canExport && (
+            <a
+              href={`/api/parceiro/inscriptions/export${
+                eventoFilter || busca
+                  ? `?${new URLSearchParams({
+                      ...(eventoFilter ? { evento: eventoFilter } : {}),
+                      ...(busca ? { busca } : {}),
+                    }).toString()}`
+                  : ''
+              }`}
+              className="btn btn-ghost"
+            >
+              <Download size={14} /> Exportar CSV
+            </a>
+          )}
         </div>
 
         {inscriptions.length === 0 && (

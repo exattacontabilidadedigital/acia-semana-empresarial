@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, Mail, Lock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 function LoginForm() {
   const router = useRouter();
@@ -123,17 +124,16 @@ function LoginForm() {
             <div className="relative">
               <Lock
                 size={16}
-                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none z-10"
                 style={{ color: 'var(--ink-50)' }}
               />
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="auth-input w-full pl-11 pr-4 py-3 rounded-xl text-sm bg-white focus:outline-none"
+                className="auth-input w-full pl-11 pr-11 py-3 rounded-xl text-sm bg-white focus:outline-none"
               />
             </div>
           </div>

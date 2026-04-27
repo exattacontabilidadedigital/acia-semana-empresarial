@@ -2,9 +2,16 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPaymentStatus } from '@/lib/asaas'
 import { generateAndUploadQRCode } from '@/lib/qrcode'
+import { requireAdminApi } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
+    // Esta rota só é usada pelo painel admin. Confirma manualmente pagamentos,
+    // sincroniza com Asaas, reenvia link. Parceiros usam /api/parceiro/* quando
+    // disponível. Service-role do supabase só é instanciada APÓS o guard.
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const { action, inscription_id } = await request.json()
 
     if (!action || !inscription_id) {

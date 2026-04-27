@@ -3,9 +3,20 @@ import { revalidatePath } from 'next/cache'
 import { Crown, User as UserIcon, Mail } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireOrgOwner } from '@/lib/orgs'
+import { requireOrgOwner, ORG_ROLE_LABELS, normalizeOrgRole } from '@/lib/orgs'
+import type { OrgRole } from '@/lib/org-types'
 import { createInvitation, cancelInvitation } from '@/lib/invitations'
 import { formatDateShort } from '@/lib/utils'
+
+const ASSIGNABLE_ROLES: OrgRole[] = ['operations', 'financial', 'viewer', 'owner']
+
+function parseRole(raw: unknown): OrgRole {
+  const value = String(raw ?? '')
+  if (value === 'owner' || value === 'operations' || value === 'financial' || value === 'viewer') {
+    return value
+  }
+  return 'operations'
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +30,7 @@ async function inviteMemberAction(formData: FormData) {
   if (!user) redirect('/login')
 
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  const role = String(formData.get('role') ?? 'member') as 'owner' | 'member'
+  const role = parseRole(formData.get('role'))
 
   if (!email) {
     redirect(`/parceiro/equipe?error=${encodeURIComponent('Email é obrigatório.')}`)
@@ -62,7 +73,7 @@ async function resendInviteAction(formData: FormData) {
   if (!user) return
 
   const email = String(formData.get('email'))
-  const role = String(formData.get('role')) as 'owner' | 'member'
+  const role = parseRole(formData.get('role'))
   await createInvitation({
     organizationId: org.id,
     email,
@@ -77,6 +88,44 @@ async function cancelInviteAction(formData: FormData) {
   await requireOrgOwner()
   const token = String(formData.get('token'))
   await cancelInvitation(token)
+  revalidatePath('/parceiro/equipe')
+}
+
+async function updateRoleAction(formData: FormData) {
+  'use server'
+  const org = await requireOrgOwner()
+  const memberId = String(formData.get('member_id'))
+  const newRole = parseRole(formData.get('role'))
+  const admin = createAdminClient()
+
+  // Não permite remover o último owner: garantia server-side.
+  if (newRole !== 'owner') {
+    const { data: target } = await admin
+      .from('organization_members')
+      .select('role')
+      .eq('id', memberId)
+      .maybeSingle()
+    if (target?.role === 'owner') {
+      const { count } = await admin
+        .from('organization_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', org.id)
+        .eq('role', 'owner')
+        .eq('status', 'active')
+      if ((count ?? 0) <= 1) {
+        redirect(
+          `/parceiro/equipe?error=${encodeURIComponent('Não é possível rebaixar o último proprietário da organização.')}`
+        )
+      }
+    }
+  }
+
+  await admin
+    .from('organization_members')
+    .update({ role: newRole })
+    .eq('id', memberId)
+    .eq('organization_id', org.id)
+
   revalidatePath('/parceiro/equipe')
 }
 
@@ -172,11 +221,14 @@ export default async function EquipePage({
             </span>
             <select
               name="role"
-              defaultValue="member"
+              defaultValue="operations"
               className="admin-select w-full px-4 py-3 rounded-xl text-sm"
             >
-              <option value="member">Membro</option>
-              <option value="owner">Owner</option>
+              {ASSIGNABLE_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ORG_ROLE_LABELS[r]}
+                </option>
+              ))}
             </select>
           </label>
           <div className="flex items-end">
@@ -213,50 +265,73 @@ export default async function EquipePage({
                 </tr>
               </thead>
               <tbody>
-                {members.map((m: any) => (
-                  <tr key={m.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <td className="py-4 px-2 font-medium" style={{ color: 'var(--ink)' }}>
-                      <div className="flex items-center gap-2">
-                        {m.role === 'owner' ? (
-                          <Crown size={14} style={{ color: 'var(--laranja)' }} />
-                        ) : (
-                          <UserIcon size={14} style={{ color: 'var(--ink-50)' }} />
-                        )}
-                        {m.user_profiles?.full_name ?? '—'}
-                      </div>
-                    </td>
-                    <td
-                      className="py-4 px-2 mono text-[12px] truncate max-w-[240px]"
-                      style={{ color: 'var(--ink-70)' }}
-                      title={userEmails[m.user_id] ?? ''}
-                    >
-                      {userEmails[m.user_id] ?? '—'}
-                    </td>
-                    <td className="py-4 px-2">
-                      <RoleBadge role={m.role} />
-                    </td>
-                    <td
-                      className="py-4 px-2 mono text-[11px] whitespace-nowrap"
-                      style={{ color: 'var(--ink-50)' }}
-                    >
-                      {formatDateShort(m.joined_at)}
-                    </td>
-                    <td className="py-4 px-2 text-right">
-                      {m.role !== 'owner' && (
-                        <form action={removeMemberAction}>
+                {members.map((m: any) => {
+                  const memberRole = normalizeOrgRole(m.role)
+                  return (
+                    <tr key={m.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                      <td className="py-4 px-2 font-medium" style={{ color: 'var(--ink)' }}>
+                        <div className="flex items-center gap-2">
+                          {memberRole === 'owner' ? (
+                            <Crown size={14} style={{ color: 'var(--laranja)' }} />
+                          ) : (
+                            <UserIcon size={14} style={{ color: 'var(--ink-50)' }} />
+                          )}
+                          {m.user_profiles?.full_name ?? '—'}
+                        </div>
+                      </td>
+                      <td
+                        className="py-4 px-2 mono text-[12px] truncate max-w-[240px]"
+                        style={{ color: 'var(--ink-70)' }}
+                        title={userEmails[m.user_id] ?? ''}
+                      >
+                        {userEmails[m.user_id] ?? '—'}
+                      </td>
+                      <td className="py-4 px-2">
+                        <form action={updateRoleAction} className="flex items-center gap-2">
                           <input type="hidden" name="member_id" value={m.id} />
+                          <select
+                            name="role"
+                            defaultValue={memberRole}
+                            className="admin-select px-2 py-1 rounded-md mono text-[11px] tracking-[0.06em]"
+                          >
+                            {ASSIGNABLE_ROLES.map((r) => (
+                              <option key={r} value={r}>
+                                {ORG_ROLE_LABELS[r]}
+                              </option>
+                            ))}
+                          </select>
                           <button
                             type="submit"
                             className="mono text-[10px] tracking-[0.1em] hover:opacity-70 transition-opacity"
-                            style={{ color: '#b91c1c' }}
+                            style={{ color: 'var(--azul)' }}
                           >
-                            REMOVER
+                            SALVAR
                           </button>
                         </form>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td
+                        className="py-4 px-2 mono text-[11px] whitespace-nowrap"
+                        style={{ color: 'var(--ink-50)' }}
+                      >
+                        {formatDateShort(m.joined_at)}
+                      </td>
+                      <td className="py-4 px-2 text-right">
+                        {memberRole !== 'owner' && (
+                          <form action={removeMemberAction}>
+                            <input type="hidden" name="member_id" value={m.id} />
+                            <button
+                              type="submit"
+                              className="mono text-[10px] tracking-[0.1em] hover:opacity-70 transition-opacity"
+                              style={{ color: '#b91c1c' }}
+                            >
+                              REMOVER
+                            </button>
+                          </form>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -371,16 +446,20 @@ function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
 }
 
 function RoleBadge({ role }: { role: string }) {
-  const isOwner = role === 'owner'
+  const normalized = normalizeOrgRole(role)
+  const styles: Record<OrgRole, { bg: string; color: string }> = {
+    owner: { bg: 'rgba(248,130,30,0.15)', color: '#b85d00' },
+    operations: { bg: 'var(--azul-50)', color: 'var(--azul)' },
+    financial: { bg: 'rgba(166,206,58,0.18)', color: '#3d5a0a' },
+    viewer: { bg: 'rgba(0,0,0,0.06)', color: 'var(--ink-70)' },
+  }
+  const { bg, color } = styles[normalized]
   return (
     <span
-      className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium"
-      style={{
-        background: isOwner ? 'rgba(248,130,30,0.15)' : 'var(--azul-50)',
-        color: isOwner ? '#b85d00' : 'var(--azul)',
-      }}
+      className="mono inline-flex items-center px-2 py-1 rounded-full text-[10px] tracking-[0.08em] font-medium uppercase"
+      style={{ background: bg, color }}
     >
-      {isOwner ? 'OWNER' : 'MEMBRO'}
+      {ORG_ROLE_LABELS[normalized]}
     </span>
   )
 }

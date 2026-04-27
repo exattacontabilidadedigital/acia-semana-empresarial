@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/email'
+import { requireAdminApi } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const { action, event_id, subject, message, target } = await request.json()
     const supabase = createAdminClient()
 

@@ -10,29 +10,42 @@ import {
   QrCode,
   UsersRound,
   Settings,
+  CreditCard,
+  XCircle,
+  ImageIcon,
   Menu,
   X,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { OrgPermission } from '@/lib/permissions'
 
 type NavItem = {
   href: string
   label: string
   icon: LucideIcon
-  ownerOnly?: boolean
+  // Item aparece se o usuário tem QUALQUER uma das permissões listadas.
+  // Se for omitido, é sempre visível.
+  perms?: OrgPermission[]
 }
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/parceiro/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/parceiro/eventos', label: 'Meus Eventos', icon: Calendar },
-  { href: '/parceiro/inscricoes', label: 'Inscrições', icon: Users },
-  { href: '/parceiro/checkin', label: 'Check-in', icon: QrCode },
-  { href: '/parceiro/equipe', label: 'Equipe', icon: UsersRound, ownerOnly: true },
-  { href: '/parceiro/configuracoes', label: 'Configurações', icon: Settings, ownerOnly: true },
+  { href: '/parceiro/eventos', label: 'Meus Eventos', icon: Calendar, perms: ['manage_events', 'view_inscriptions'] },
+  { href: '/parceiro/inscricoes', label: 'Inscrições', icon: Users, perms: ['view_inscriptions'] },
+  { href: '/parceiro/checkin', label: 'Check-in', icon: QrCode, perms: ['do_checkin'] },
+  { href: '/parceiro/pagamentos', label: 'Pagamentos', icon: CreditCard, perms: ['view_payments'] },
+  { href: '/parceiro/cancelamentos', label: 'Cancelamentos', icon: XCircle, perms: ['manage_cancellations'] },
+  { href: '/parceiro/materiais', label: 'Materiais', icon: ImageIcon, perms: ['upload_materials'] },
+  { href: '/parceiro/equipe', label: 'Equipe', icon: UsersRound, perms: ['manage_team'] },
+  { href: '/parceiro/configuracoes', label: 'Configurações', icon: Settings, perms: ['edit_org_settings'] },
 ]
 
-export default function ParceiroSidebar({ isOwner }: { isOwner: boolean }) {
+export default function ParceiroSidebar({
+  permissions,
+}: {
+  permissions: OrgPermission[]
+}) {
   const pathname = usePathname() ?? ''
   const [open, setOpen] = useState(false)
 
@@ -40,7 +53,9 @@ export default function ParceiroSidebar({ isOwner }: { isOwner: boolean }) {
     setOpen(false)
   }, [pathname])
 
-  const items = NAV_ITEMS.filter((i) => !i.ownerOnly || isOwner)
+  const items = NAV_ITEMS.filter(
+    (i) => !i.perms || i.perms.some((p) => permissions.includes(p))
+  )
 
   return (
     <>

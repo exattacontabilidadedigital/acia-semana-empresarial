@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import ModalPortal from '@/components/ui/ModalPortal'
+import PasswordInput from '@/components/ui/PasswordInput'
 import {
   UserPlus,
   UserCog,
@@ -441,13 +442,12 @@ export default function AdminUsuariosPage() {
                 </div>
                 <div className="col-span-2">
                   <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>SENHA *</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={createForm.password}
                     onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
                     required
                     minLength={6}
-                    className="admin-input w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+                    className="admin-input w-full pl-4 pr-11 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
                     style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}
                   />
                 </div>
@@ -638,13 +638,12 @@ export default function AdminUsuariosPage() {
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
                 <label className="mono block text-[10px] tracking-[0.1em] mb-2" style={{ color: 'var(--ink-50)' }}>NOVA SENHA *</label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={passwordForm.new_password}
                   onChange={(e) => setPasswordForm({ new_password: e.target.value })}
                   required
                   minLength={6}
-                  className="admin-input w-full px-4 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
+                  className="admin-input w-full pl-4 pr-11 py-3 rounded-xl text-sm bg-white focus:outline-none transition-colors"
                   style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}
                 />
               </div>

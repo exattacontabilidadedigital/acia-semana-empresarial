@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import type { OrgRole, OrganizationSummary } from '@/lib/org-types'
+import { normalizeOrgRole } from '@/lib/org-types'
 
 // Re-exports para conveniência (server pode importar tudo daqui).
 // Client components devem importar de '@/lib/org-types' diretamente.
@@ -9,6 +10,9 @@ export type { OrgRole, OrganizationSummary } from '@/lib/org-types'
 export {
   ORG_TYPE_LABELS,
   ORG_STATUS_LABELS,
+  ORG_ROLE_LABELS,
+  ORG_ROLE_DESCRIPTIONS,
+  normalizeOrgRole,
   slugify,
 } from '@/lib/org-types'
 
@@ -46,7 +50,7 @@ export async function getUserOrgs(): Promise<OrganizationSummary[]> {
         type: org.type,
         logo_url: org.logo_url,
         status: org.status,
-        role: row.role as OrgRole,
+        role: normalizeOrgRole(row.role) as OrgRole,
       }
     })
     .filter(Boolean) as OrganizationSummary[]

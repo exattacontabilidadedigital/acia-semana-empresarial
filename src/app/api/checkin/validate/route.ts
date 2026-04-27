@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getActiveOrg } from '@/lib/orgs'
+import { hasPermission } from '@/lib/permissions'
 
 const validateCheckinSchema = z.union([
   z.object({ ticket_id: z.string().uuid() }),
@@ -165,9 +168,27 @@ export async function GET(request: Request) {
   })
 }
 
-// POST - Chamado pelo admin para fazer check-in de um ticket
+// POST - Chamado pelo admin/parceiro para fazer check-in de um ticket
 export async function POST(request: Request) {
   try {
+    // Auth: precisa ser admin global ou ter `do_checkin` na org dona do evento.
+    // RLS no banco já protege tickets, mas como aqui usamos service-role
+    // (createAdminClient) precisamos validar manualmente.
+    const userSupabase = createServerSupabaseClient()
+    const {
+      data: { user },
+    } = await userSupabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    }
+
+    const { data: roleRows } = await userSupabase
+      .from('users_roles')
+      .select('roles(name)')
+      .eq('user_id', user.id)
+    const isAdmin =
+      roleRows?.some((r: any) => r.roles?.name === 'admin') ?? false
+
     const body = await request.json()
     const data = validateCheckinSchema.parse(body)
 
@@ -178,7 +199,7 @@ export async function POST(request: Request) {
     if ('ticket_id' in data) {
       const { data: ticket, error } = await supabase
         .from('tickets')
-        .select('*, inscriptions(*, events(*))')
+        .select('*, inscriptions(*, events(id, title, event_date, start_time, end_time, location, organization_id))')
         .eq('id', data.ticket_id)
         .single()
 
@@ -195,7 +216,7 @@ export async function POST(request: Request) {
 
       const { data: foundTickets, error } = await supabase
         .from('tickets')
-        .select('*, inscriptions(*, events(*))')
+        .select('*, inscriptions(*, events(id, title, event_date, start_time, end_time, location, organization_id))')
         .eq('event_id', data.event_id)
         .eq('inscriptions.cpf', cpfClean)
 
@@ -217,6 +238,24 @@ export async function POST(request: Request) {
     }
 
     const ticket = tickets[0]
+
+    // Valida ownership: admin global passa, parceiro só pode fazer check-in
+    // em ticket de evento da própria org com a permissão do_checkin.
+    if (!isAdmin) {
+      const eventOrgId = ticket.inscriptions?.events?.organization_id ?? null
+      const org = await getActiveOrg()
+      if (
+        !org ||
+        !eventOrgId ||
+        org.id !== eventOrgId ||
+        !hasPermission(org.role, 'do_checkin')
+      ) {
+        return NextResponse.json(
+          { error: 'forbidden', message: 'Sem permissão para check-in deste ticket' },
+          { status: 403 }
+        )
+      }
+    }
 
     if (ticket.status !== 'active') {
       return NextResponse.json({

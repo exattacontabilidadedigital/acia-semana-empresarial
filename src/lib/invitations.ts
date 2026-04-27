@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { OrgRole } from '@/lib/org-types'
 
-export type InvitationRole = 'owner' | 'member'
+export type InvitationRole = OrgRole
 
 function getSiteUrl(): string {
   return (

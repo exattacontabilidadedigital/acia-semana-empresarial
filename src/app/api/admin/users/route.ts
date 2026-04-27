@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireAdminApi } from '@/lib/auth'
 
 // GET - Listar usuários com perfis e roles
 export async function GET() {
   try {
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const supabase = createAdminClient()
 
     // Buscar perfis
@@ -56,6 +60,9 @@ export async function GET() {
 // POST - Criar usuário ou gerenciar roles
 export async function POST(request: Request) {
   try {
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const body = await request.json()
     const { action } = body
     const supabase = createAdminClient()

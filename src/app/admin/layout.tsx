@@ -32,6 +32,8 @@ import {
   Settings,
   Activity,
   XCircle as XCircleIcon,
+  ClipboardList,
+  LayoutTemplate,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -58,6 +60,20 @@ type NavEntry = NavLeaf | NavGroup
 const isGroup = (entry: NavEntry): entry is NavGroup =>
   (entry as NavGroup).children !== undefined
 
+// Marca um filho como ativo só se ele for o match mais específico no grupo.
+// Evita que `/admin/expositores` (Inscrições) também acenda quando estamos
+// em `/admin/expositores/pagina`.
+function isChildPathActive(
+  pathname: string,
+  child: NavLeaf,
+  siblings: NavLeaf[],
+): boolean {
+  if (!pathname.startsWith(child.href)) return false
+  return !siblings.some(
+    (s) => s !== child && s.href.length > child.href.length && pathname.startsWith(s.href),
+  )
+}
+
 const navItems: NavEntry[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/eventos', label: 'Eventos', icon: Calendar },
@@ -68,10 +84,23 @@ const navItems: NavEntry[] = [
   { href: '/admin/checkin', label: 'Check-in', icon: QrCode },
   { href: '/admin/checkin/live', label: 'Check-in ao vivo', icon: Activity },
   {
-    href: '/admin/expositores',
+    id: 'expositores',
     label: 'Expositores',
     icon: Store,
     badgeKey: 'pending_exhibitors',
+    children: [
+      {
+        href: '/admin/expositores',
+        label: 'Inscrições',
+        icon: ClipboardList,
+        badgeKey: 'pending_exhibitors',
+      },
+      {
+        href: '/admin/expositores/pagina',
+        label: 'Página de Expositores',
+        icon: LayoutTemplate,
+      },
+    ],
   },
   { href: '/admin/certificados', label: 'Certificados', icon: Award },
   { href: '/admin/usuarios', label: 'Usuários', icon: UserCog },
@@ -285,6 +314,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
 
+        {/* Identidade do perfil — diferencia visualmente do portal de parceiros */}
+        {!collapsed && (
+          <div className="px-5 mt-1 mb-2 hidden lg:block">
+            <span
+              className="mono inline-flex items-center px-2 py-0.5 rounded-full text-[9px] tracking-[0.14em] font-medium uppercase"
+              style={{
+                background: 'rgba(248,130,30,0.16)',
+                color: 'var(--laranja)',
+                border: '1px solid rgba(248,130,30,0.3)',
+              }}
+            >
+              Administrador · ACIA
+            </span>
+          </div>
+        )}
+
         {/* Eyebrow */}
         {!collapsed && (
           <div
@@ -360,7 +405,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               return (
                 <div key={entry.id} className="hidden lg:block">
                   {entry.children.map((child) => {
-                    const isActive = pathname.startsWith(child.href)
+                    const isActive = isChildPathActive(pathname, child, entry.children)
                     const childBadge = child.badgeKey ? badges[child.badgeKey] : 0
                     return (
                       <Link
@@ -441,7 +486,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     style={{ borderLeft: '1px solid rgba(255,255,255,0.08)' }}
                   >
                     {entry.children.map((child) => {
-                      const isActive = pathname.startsWith(child.href)
+                      const isActive = isChildPathActive(pathname, child, entry.children)
                       const childBadge = child.badgeKey
                         ? badges[child.badgeKey]
                         : 0
@@ -553,6 +598,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             style={{ color: 'var(--ink)', letterSpacing: '-0.02em' }}
           >
             Admin
+          </span>
+          <span
+            className="mono inline-flex items-center px-2 py-0.5 rounded-full text-[9px] tracking-[0.12em] font-medium uppercase"
+            style={{
+              background: 'rgba(248,130,30,0.12)',
+              color: '#b85d00',
+              border: '1px solid rgba(248,130,30,0.3)',
+            }}
+          >
+            ACIA
           </span>
         </header>
 

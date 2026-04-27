@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { ArrowLeft } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireActiveOrg } from '@/lib/orgs'
+import { requirePermission } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +20,7 @@ const CATEGORIES = [
 
 async function createEventAction(formData: FormData) {
   'use server'
-  const org = await requireActiveOrg()
+  const org = await requirePermission('manage_events')
   const supabase = createServerSupabaseClient()
   const {
     data: { user },
@@ -72,11 +72,12 @@ async function createEventAction(formData: FormData) {
   redirect(`/parceiro/eventos/${created.id}/editar?created=1`)
 }
 
-export default function NovoEventoPage({
+export default async function NovoEventoPage({
   searchParams,
 }: {
   searchParams: { error?: string }
 }) {
+  await requirePermission('manage_events')
   return (
     <div className="page-enter max-w-3xl">
       <Link

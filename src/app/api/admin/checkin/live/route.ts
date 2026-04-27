@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { reportError } from '@/lib/observability'
+import { requireAdminApi } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
+    const auth = await requireAdminApi()
+    if ('error' in auth) return auth.error
+
     const supabase = createAdminClient()
 
     // Janela: hoje até 2 dias depois (cobre o evento todo)

@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { LogOut } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getUserOrgs, getActiveOrg } from '@/lib/orgs'
+import { getUserOrgs, getActiveOrg, ORG_ROLE_LABELS } from '@/lib/orgs'
+import { PERMISSION_MAP } from '@/lib/permissions'
 import ParceiroSidebar from '@/components/parceiro/ParceiroSidebar'
 import OrgSwitcher from '@/components/parceiro/OrgSwitcher'
 
@@ -29,12 +30,14 @@ export default async function ParceiroLayout({
     )
   }
 
+  const permissions = PERMISSION_MAP[activeOrg.role] ?? []
+
   return (
     <div
       className="min-h-screen"
       style={{ background: 'var(--paper)', color: 'var(--ink)' }}
     >
-      <ParceiroSidebar isOwner={activeOrg.role === 'owner'} />
+      <ParceiroSidebar permissions={permissions} />
 
       <div className="lg:pl-64 transition-all duration-200">
         {/* Top bar */}
@@ -48,6 +51,17 @@ export default async function ParceiroLayout({
           <div className="flex-1 min-w-0">
             <OrgSwitcher orgs={orgs} activeOrgId={activeOrg.id} />
           </div>
+          <span
+            className="mono hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[10px] tracking-[0.1em] font-medium uppercase"
+            style={{
+              background: 'rgba(248,130,30,0.12)',
+              color: '#b85d00',
+              border: '1px solid rgba(248,130,30,0.3)',
+            }}
+            title="Seu nível de acesso nesta organização"
+          >
+            Parceiro · {ORG_ROLE_LABELS[activeOrg.role]}
+          </span>
           <form action="/api/auth/signout" method="post">
             <button
               type="submit"

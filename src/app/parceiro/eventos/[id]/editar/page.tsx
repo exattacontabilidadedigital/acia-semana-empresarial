@@ -5,6 +5,7 @@ import { ArrowLeft, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireActiveOrg } from '@/lib/orgs'
+import { requirePermission } from '@/lib/permissions'
 import { formatDateShort } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,7 @@ const STATUS_PILL: Record<string, { bg: string; color: string; label: string }> 
 
 async function updateEventAction(formData: FormData) {
   'use server'
-  const org = await requireActiveOrg()
+  const org = await requirePermission('manage_events')
   const id = Number(formData.get('id'))
   const action = String(formData.get('action') ?? 'save')
 
